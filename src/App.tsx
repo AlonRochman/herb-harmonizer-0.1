@@ -10,6 +10,7 @@ import RecommendationsPage from "./pages/RecommendationsPage.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
 import FeedbackPage from "./pages/FeedbackPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Navbar from "./components/Navbar";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AppProvider>
+          <Navbar />
+          
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/patient-input" element={<PatientInputPage />} />
