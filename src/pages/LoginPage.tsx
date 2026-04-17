@@ -2,125 +2,205 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { useAppState } from "@/context/AppContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldCheck, Loader2, Stethoscope, User } from "lucide-react";
+import { Leaf, Loader2, Stethoscope, User, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
 
+// ─── Feature bullet ───────────────────────────────────────────────────────────
+const Feature = ({ icon: Icon, text }: { icon: React.ElementType; text: string }) => (
+  <div className="flex items-center gap-2.5 text-[13px] text-slate-500">
+    <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+      <Icon className="h-3.5 w-3.5 text-emerald-600" />
+    </div>
+    {text}
+  </div>
+);
+
+// ─── Role card ────────────────────────────────────────────────────────────────
+const RoleCard = ({
+  icon: Icon, title, desc, color, onClick, disabled,
+}: {
+  icon: React.ElementType; title: string; desc: string;
+  color: "emerald" | "blue"; onClick: () => void; disabled: boolean;
+}) => {
+  const styles = {
+    emerald: "hover:border-emerald-300 hover:bg-emerald-50 group-hover:text-emerald-700",
+    blue:    "hover:border-blue-300 hover:bg-blue-50 group-hover:text-blue-700",
+  };
+  const iconStyles = {
+    emerald: "bg-emerald-100 text-emerald-700",
+    blue:    "bg-blue-100 text-blue-700",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`group w-full flex flex-col items-center gap-3 p-5 rounded-xl border border-slate-200 transition-all disabled:opacity-50 ${styles[color]}`}
+    >
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${iconStyles[color]}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="text-center">
+        <p className="text-[14px] font-semibold text-slate-800">{title}</p>
+        <p className="text-[12px] text-slate-400 mt-0.5">{desc}</p>
+      </div>
+    </button>
+  );
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 const LoginPage = () => {
   const navigate = useNavigate();
   const { setCurrentUser } = useAppState();
   const [isLoading, setIsLoading] = useState(false);
-  
-  // States פשוטים רק בשביל שיהיה מה למלא
-  const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail]       = useState("");
+  const [showSignup, setShowSignup] = useState(false);
 
-  // פונקציית כניסה מהירה - לא באמת בודקת, פשוט מעבירה
-  const quickLogin = (role: 'doctor' | 'patient') => {
+  // Quick demo login
+  const quickLogin = (role: "doctor" | "patient") => {
     setIsLoading(true);
-    
-    // מדמים השהיה קלה בשביל ה"קטע" המקצועי
     setTimeout(() => {
-      setCurrentUser({ 
-        id: "demo-id", 
-        full_name: fullName || (role === 'doctor' ? "Dr. Demo Admin" : "Demo Patient"), 
-        role: role 
+      setCurrentUser({
+        id: "demo-id",
+        full_name: fullName || (role === "doctor" ? "Dr. Demo" : "Demo Patient"),
+        role,
       });
       navigate("/");
-    }, 800);
+    }, 600);
   };
 
-  // הרשמה שקטה - שומרת ב-DB אבל לא חוסמת אם נכשל
-  const handleSilentSignUp = async (role: 'doctor' | 'patient') => {
+  // Silent signup → then login
+  const handleSignup = async (role: "doctor" | "patient") => {
     setIsLoading(true);
     try {
-      await supabase.from('users').insert({ 
-        full_name: fullName || "Demo User", 
-        email: email || "demo@demo.com",
-        role: role 
+      await supabase.from("users").insert({
+        full_name: fullName || "New User",
+        email:     email    || "demo@demo.com",
       });
-    } catch (e) {
-      console.log("Silent signup failed, continuing to app anyway...");
+    } catch {
+      // silent
     }
     quickLogin(role);
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[85vh] bg-slate-50 p-4 animate-in fade-in duration-700">
-      <Card className="w-full max-w-md shadow-2xl border-slate-200 overflow-hidden">
-        <div className="h-2 bg-green-600 w-full" />
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto bg-green-100 p-3 rounded-full w-12 h-12 flex items-center justify-center mb-2">
-            <ShieldCheck className="h-6 w-6 text-green-600" />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 bg-emerald-700 rounded-2xl flex items-center justify-center mb-3 shadow-sm">
+            <Leaf className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-slate-800">Herb Harmonizer</CardTitle>
-          <CardDescription>Prototype Clinical Access</CardDescription>
-        </CardHeader>
-        
-        <CardContent className="pt-4">
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">New Account</TabsTrigger>
-            </TabsList>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">MediCanna</h1>
+          <p className="text-[13px] text-slate-400 mt-0.5">Clinical Decision Support System</p>
+        </div>
 
-            {/* טאב כניסה מהירה - הכי חשוב למצגת */}
-            <TabsContent value="login" className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-24 flex flex-col gap-2 border-2 hover:border-blue-500 hover:bg-blue-50"
-                  onClick={() => quickLogin('doctor')}
+        {/* Card */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+
+          {!showSignup ? (
+            <>
+              <p className="text-[13px] font-medium text-slate-600 mb-4 text-center">
+                Enter as a demo user
+              </p>
+
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <RoleCard
+                  icon={User}
+                  title="Patient"
+                  desc="View recommendations & log usage"
+                  color="emerald"
+                  onClick={() => quickLogin("patient")}
+                  disabled={isLoading}
+                />
+                <RoleCard
+                  icon={Stethoscope}
+                  title="Doctor"
+                  desc="Clinical dashboard & approvals"
+                  color="blue"
+                  onClick={() => quickLogin("doctor")}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {isLoading && (
+                <div className="flex items-center justify-center gap-2 text-[13px] text-slate-400 mb-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Initializing session…
+                </div>
+              )}
+
+              <div className="border-t border-slate-100 pt-4">
+                <button
+                  className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={() => setShowSignup(true)}
+                >
+                  Create a named account →
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] font-medium text-slate-600 mb-4">Create account</p>
+
+              <div className="space-y-3 mb-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Full name</Label>
+                  <Input
+                    placeholder="e.g. Yoni Cohen"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="text-[13px]"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Email</Label>
+                  <Input
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="text-[13px]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <Button
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-[13px]"
+                  onClick={() => handleSignup("patient")}
                   disabled={isLoading}
                 >
-                  <Stethoscope className="h-8 w-8 text-blue-600" />
-                  <span>Doctor View</span>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "As patient"}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-24 flex flex-col gap-2 border-2 hover:border-green-500 hover:bg-green-50"
-                  onClick={() => quickLogin('patient')}
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-[13px]"
+                  onClick={() => handleSignup("doctor")}
                   disabled={isLoading}
                 >
-                  <User className="h-8 w-8 text-green-600" />
-                  <span>Patient View</span>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "As doctor"}
                 </Button>
               </div>
-              <p className="text-center text-xs text-slate-400">Click a role to enter the prototype instantly</p>
-            </TabsContent>
 
-            {/* טאב הרשמה - אם רוצים להראות שהמערכת "שומרת" */}
-            <TabsContent value="signup" className="space-y-4">
-              <div className="space-y-2">
-                <Label>Full Name</Label>
-                <Input placeholder="John Doe" onChange={(e) => setFullName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input placeholder="name@example.com" onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Button className="bg-blue-600" onClick={() => handleSilentSignUp('doctor')} disabled={isLoading}>
-                  Join as Doctor
-                </Button>
-                <Button className="bg-green-600" onClick={() => handleSilentSignUp('patient')} disabled={isLoading}>
-                  Join as Patient
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {isLoading && (
-            <div className="flex flex-col items-center justify-center mt-6 animate-pulse">
-              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
-              <span className="text-xs mt-2 font-medium text-slate-500">Initializing Session...</span>
-            </div>
+              <button
+                className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
+                onClick={() => setShowSignup(false)}
+              >
+                ← Back
+              </button>
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Feature list */}
+        <div className="mt-6 space-y-2.5 px-1">
+          <Feature icon={Sparkles}    text="AI-powered strain matching" />
+          <Feature icon={ShieldCheck} text="Evidence-based clinical rules" />
+          <Feature icon={TrendingUp}  text="Treatment efficacy tracking" />
+        </div>
+      </div>
     </div>
   );
 };

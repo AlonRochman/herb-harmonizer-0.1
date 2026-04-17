@@ -7,353 +7,446 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { User, Shield, ArrowRight, Loader2, FileText, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
+import { ArrowRight, ArrowLeft, Loader2, AlertCircle, User, Shield, Sparkles, Check } from "lucide-react";
 import { medicalConditions } from "@/data/mockData";
 
+// ─── Step definitions ─────────────────────────────────────────────────────────
+const STEPS = [
+  { id: 1, label: "Patient details",      icon: User },
+  { id: 2, label: "Clinical constraints", icon: Shield },
+  { id: 3, label: "Recommendations",      icon: Sparkles },
+];
+
+// ─── Progress stepper ─────────────────────────────────────────────────────────
+const Stepper = ({ current }: { current: number }) => (
+  <div className="flex items-center gap-0 mb-8">
+    {STEPS.map((step, i) => {
+      const done    = current > step.id;
+      const active  = current === step.id;
+      const Icon    = step.icon;
+      return (
+        <div key={step.id} className="flex items-center flex-1 last:flex-none">
+          {/* Circle */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold border-2 transition-all duration-300 ${
+              done   ? "bg-emerald-700 border-emerald-700 text-white" :
+              active ? "bg-white border-emerald-700 text-emerald-700" :
+                       "bg-white border-slate-200 text-slate-400"
+            }`}>
+              {done ? <Check className="h-3.5 w-3.5" /> : step.id}
+            </div>
+            <span className={`text-[11px] font-medium whitespace-nowrap hidden sm:block ${
+              active ? "text-emerald-700" : done ? "text-slate-600" : "text-slate-400"
+            }`}>
+              {step.label}
+            </span>
+          </div>
+          {/* Connector line */}
+          {i < STEPS.length - 1 && (
+            <div className={`flex-1 h-0.5 mx-2 mb-5 transition-all duration-300 ${
+              current > step.id ? "bg-emerald-700" : "bg-slate-200"
+            }`} />
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
+// ─── Condition pill picker ────────────────────────────────────────────────────
+const ConditionPicker = ({
+  value, onChange,
+}: { value: string; onChange: (v: string) => void }) => (
+  <div>
+    <Input
+      placeholder="Type or pick a condition…"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      list="conditions-list"
+      className="text-[13px] mb-2"
+    />
+    <datalist id="conditions-list">
+      {medicalConditions.map((c) => <option key={c} value={c} />)}
+    </datalist>
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {medicalConditions.slice(0, 6).map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => onChange(c)}
+          className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+            value === c
+              ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          {c}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// ─── Inline field error ───────────────────────────────────────────────────────
+const FieldError = ({ msg }: { msg?: string }) =>
+  msg ? <p className="text-[11px] text-red-500 mt-1">{msg}</p> : null;
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 const PatientInputPage = () => {
   const navigate = useNavigate();
-  const { setPatientProfile, setClinicalConstraints } = useAppState();
+  const { setPatientProfile, setClinicalConstraints, currentUser } = useAppState();
+  const isDoctor = currentUser?.role === "doctor";
 
-  // DB States
-  const [dbPatients, setDbPatients] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSavingDB, setIsSavingDB] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  // DB
+  const [dbPatients, setDbPatients]   = useState<any[]>([]);
+  const [isLoading, setIsLoading]     = useState(true);
+  const [isSaving, setIsSaving]       = useState(false);
 
-  // Form States
-  const [step, setStep] = useState(1);
+  // Steps
+  const [step, setStep]               = useState(1);
+
+  // Step 1
   const [selectedPatientId, setSelectedPatientId] = useState("manual");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [condition, setCondition] = useState("");
+  const [age, setAge]                 = useState("");
+  const [gender, setGender]           = useState("");
+  const [condition, setCondition]     = useState("");
   const [sensitivities, setSensitivities] = useState("");
   const [preferences, setPreferences] = useState("");
-  
-  // Constraints States
-  const [thcMax, setThcMax] = useState("");
-  const [cbdMin, setCbdMin] = useState("");
+
+  // Step 2
+  const [thcMax, setThcMax]           = useState("");
+  const [cbdMin, setCbdMin]           = useState("");
   const [contraindications, setContraindications] = useState("");
   const [licenseInfo, setLicenseInfo] = useState("");
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('patients')
-          .select(`
-            id,
-            users ( full_name, email ),
-            patient_profiles ( age, gender, medical_conditions, sensitivities, preferences ),
-            medical_licenses ( category_approved, status )
-          `);
+  // Errors (per-field)
+  const [errors, setErrors]           = useState<Record<string, string>>({});
 
-        if (error) throw error;
+  // ── load existing patients (doctor) ────────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from("patients").select(`
+          id,
+          users (full_name, email),
+          patient_profiles (age, gender, medical_conditions, sensitivities, preferences),
+          medical_licenses (category_approved, status)
+        `);
         setDbPatients(data || []);
-      } catch (error) {
-        console.error("Error fetching patients:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchPatients();
+    load();
   }, []);
 
+  // ── auto-fill when picking a patient ───────────────────────────────────────
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId);
-    setErrorMsg("");
-    
+    setErrors({});
     if (patientId === "manual") {
       setAge(""); setGender(""); setCondition("");
       setSensitivities(""); setPreferences("");
       setThcMax(""); setCbdMin(""); setLicenseInfo("");
       return;
     }
-
-    const patient = dbPatients.find(p => p.id === patientId);
-    if (patient && patient.patient_profiles && patient.patient_profiles.length > 0) {
-      const profile = patient.patient_profiles[0];
-      setAge(profile.age?.toString() || "");
-      setGender(profile.gender || "");
-      setCondition(profile.medical_conditions || "");
-      setSensitivities(profile.sensitivities || "");
-      setPreferences(profile.preferences || "");
-
-      const activeLicense = patient.medical_licenses?.find((lic: any) => lic.status === 'active');
-      if (activeLicense && activeLicense.category_approved) {
-        setLicenseInfo(`Active License: ${activeLicense.category_approved}`);
-        const match = activeLicense.category_approved.match(/T(\d+)\/C(\d+)/);
-        if (match) {
-          setThcMax(match[1]);
-          setCbdMin(match[2]);
-        }
-      } else {
-        setLicenseInfo("");
-        setThcMax("");
-        setCbdMin("");
-      }
+    const p = dbPatients.find((x) => x.id === patientId);
+    if (p?.patient_profiles?.[0]) {
+      const pr = p.patient_profiles[0];
+      setAge(pr.age?.toString() || "");
+      setGender(pr.gender || "");
+      setCondition(pr.medical_conditions || "");
+      setSensitivities(pr.sensitivities || "");
+      setPreferences(pr.preferences || "");
+    }
+    const lic = p?.medical_licenses?.find((l: any) => l.status === "active");
+    if (lic?.category_approved) {
+      setLicenseInfo(`Active license: ${lic.category_approved}`);
+      const m = lic.category_approved.match(/T(\d+)\/C(\d+)/);
+      if (m) { setThcMax(m[1]); setCbdMin(m[2]); }
+    } else {
+      setLicenseInfo(""); setThcMax(""); setCbdMin("");
     }
   };
 
-  // Validation for Step 1
-  const handleNextStep = () => {
-    if (!age || !gender || !condition) {
-      setErrorMsg("Please fill in Age, Gender, and Medical Condition before proceeding.");
-      return;
-    }
-    setErrorMsg("");
+  // ── step 1 validation ───────────────────────────────────────────────────────
+  const handleNext = () => {
+    const e: Record<string, string> = {};
+    if (!age)       e.age       = "Required";
+    if (!gender)    e.gender    = "Required";
+    if (!condition) e.condition = "Required";
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
     setStep(2);
   };
 
-  // Validation and DB Save for Step 2
+  // ── submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!thcMax || !cbdMin) {
-      setErrorMsg("Please define Max THC and Min CBD limits.");
-      return;
-    }
-    
-    setErrorMsg("");
-    setIsSavingDB(true);
+    const e: Record<string, string> = {};
+    if (!thcMax) e.thcMax = "Required";
+    if (!cbdMin) e.cbdMin = "Required";
+    if (Object.keys(e).length) { setErrors(e); return; }
 
+    setIsSaving(true);
+    setErrors({});
     try {
-      let finalPatientId = selectedPatientId;
+      let finalId = selectedPatientId;
 
-      // If manual entry -> INSERT new records to DB
-      if (finalPatientId === "manual") {
-        // 1. Create User
-        const { data: newUser, error: uError } = await supabase.from('users').insert({
-          full_name: `New Patient (${age}yo)`
-        }).select('id').single();
-        if (uError) throw uError;
-
-        // 2. Create Patient
-        const { data: newPatient, error: pError } = await supabase.from('patients').insert({
-          user_id: newUser.id
-        }).select('id').single();
-        if (pError) throw pError;
-        finalPatientId = newPatient.id;
-
-        // 3. Create Profile
-        await supabase.from('patient_profiles').insert({
-          patient_id: finalPatientId,
-          age: parseInt(age),
-          gender,
-          medical_conditions: condition,
-          sensitivities,
-          preferences
+      if (finalId === "manual") {
+        const { data: u }  = await supabase.from("users").insert({ full_name: `Patient (${age}yo)` }).select("id").single();
+        const { data: pt } = await supabase.from("patients").insert({ user_id: u!.id }).select("id").single();
+        finalId = pt!.id;
+        await supabase.from("patient_profiles").insert({
+          patient_id: finalId, age: +age, gender,
+          medical_conditions: condition, sensitivities, preferences,
         });
-
-        // 4. Create Constraints
-        await supabase.from('clinical_constraints').insert({
-          patient_id: finalPatientId,
-          thc_max: parseFloat(thcMax),
-          cbd_min: parseFloat(cbdMin),
-          contraindications
+        await supabase.from("clinical_constraints").insert({
+          patient_id: finalId, thc_max: +thcMax, cbd_min: +cbdMin, contraindications,
         });
-
       } else {
-        // If existing patient -> UPDATE their records in DB based on UI changes
-        await supabase.from('patient_profiles')
-          .update({
-            age: parseInt(age),
-            gender,
-            medical_conditions: condition,
-            sensitivities,
-            preferences
-          }).eq('patient_id', finalPatientId);
-
-        // Delete old constraints and insert new ones (safer than update if they didn't exist)
-        await supabase.from('clinical_constraints').delete().eq('patient_id', finalPatientId);
-        await supabase.from('clinical_constraints').insert({
-          patient_id: finalPatientId,
-          thc_max: parseFloat(thcMax),
-          cbd_min: parseFloat(cbdMin),
-          contraindications
+        await supabase.from("patient_profiles").update({
+          age: +age, gender, medical_conditions: condition, sensitivities, preferences,
+        }).eq("patient_id", finalId);
+        await supabase.from("clinical_constraints").delete().eq("patient_id", finalId);
+        await supabase.from("clinical_constraints").insert({
+          patient_id: finalId, thc_max: +thcMax, cbd_min: +cbdMin, contraindications,
         });
       }
 
-      // Save to global context for the Recommendations page
-      setPatientProfile({
-        patientId: finalPatientId,
-        age: parseInt(age),
-        gender,
-        medicalConditions: condition,
-        sensitivities,
-        preferences,
-      });
-      
-      setClinicalConstraints({
-        patientId: finalPatientId,
-        thcMax: parseFloat(thcMax),
-        cbdMin: parseFloat(cbdMin),
-        contraindications,
-      });
-      
-      navigate("/recommendations");
-      
-    } catch (error) {
-      console.error("Database Save Error:", error);
-      setErrorMsg("Failed to sync with database. Check console for details.");
+      setPatientProfile({ patientId: finalId, age: +age, gender, medicalConditions: condition, sensitivities, preferences });
+      setClinicalConstraints({ patientId: finalId, thcMax: +thcMax, cbdMin: +cbdMin, contraindications });
+
+      // show step 3 briefly then navigate
+      setStep(3);
+      setTimeout(() => navigate("/recommendations"), 1200);
+    } catch (err) {
+      console.error(err);
+      setErrors({ submit: "Failed to save. Check console for details." });
     } finally {
-      setIsSavingDB(false);
+      setIsSaving(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8 animate-in fade-in duration-500">
-      <div className="mb-8 text-center space-y-2">
-        <h2 className="text-3xl font-bold text-slate-800">Diagnosis & Constraints</h2>
-        <p className="text-slate-500">Step {step} of 2 - Define the clinical parameters</p>
-      </div>
+    <div className="max-w-xl mx-auto py-2 animate-in fade-in duration-500">
 
-      {errorMsg && (
-        <Alert variant="destructive" className="mb-6 bg-red-50 text-red-900 border-red-200">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="font-medium ml-2">{errorMsg}</AlertDescription>
-        </Alert>
+      {/* Stepper */}
+      <Stepper current={step} />
+
+      {/* ── Step 3 — success ─────────────────────────────────────────────── */}
+      {step === 3 && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
+            <Check className="h-7 w-7 text-emerald-600" />
+          </div>
+          <p className="text-[15px] font-medium text-slate-800">Profile saved</p>
+          <p className="text-[13px] text-slate-400">Generating your recommendations…</p>
+        </div>
       )}
 
+      {/* ── Step 1 — patient details ──────────────────────────────────────── */}
       {step === 1 && (
-        <Card className="shadow-md border-slate-200">
-          <CardHeader className="flex flex-row items-center gap-4 bg-slate-50/50 border-b pb-4">
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-              <User className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle className="text-xl">Patient Details</CardTitle>
-              <CardDescription>Select a patient from the database or enter details manually</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            
-            <div className="space-y-2 bg-green-50 p-4 rounded-lg border border-green-100">
-              <Label htmlFor="patient-select" className="text-green-800 font-semibold flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Load Existing Patient
-              </Label>
+        <div className="space-y-5">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Patient details</h1>
+            <p className="text-sm text-slate-400 mt-0.5">Basic medical profile for the recommendation engine</p>
+          </div>
+
+          {/* Load existing — only shown for doctors */}
+          {isDoctor && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2">
+              <p className="text-[12px] font-medium text-emerald-700">Load existing patient</p>
               {isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 h-10">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Syncing with Database...
+                <div className="flex items-center gap-2 text-[13px] text-slate-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading patients…
                 </div>
               ) : (
                 <Select value={selectedPatientId} onValueChange={handleSelectPatient}>
-                  <SelectTrigger id="patient-select" className="bg-white">
-                    <SelectValue placeholder="Select patient..." />
+                  <SelectTrigger className="bg-white text-[13px]">
+                    <SelectValue placeholder="Select patient or enter manually…" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="manual" className="font-bold text-blue-600">
-                      + Enter New Patient Manually
+                    <SelectItem value="manual" className="text-emerald-700 font-medium">
+                      + New patient (manual)
                     </SelectItem>
                     {dbPatients.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.users?.full_name} {p.users?.email ? `(${p.users.email})` : ''}
+                        {p.users?.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="age">Age <span className="text-red-500">*</span></Label>
-                <Input id="age" type="number" placeholder="e.g. 45" value={age} onChange={(e) => setAge(e.target.value)} className={!age && errorMsg ? "border-red-300" : ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender <span className="text-red-500">*</span></Label>
-                <Select value={gender} onValueChange={setGender}>
-                  <SelectTrigger id="gender" className={!gender && errorMsg ? "border-red-300" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Primary Medical Condition <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="e.g. Oncology Pain, PTSD" 
-                value={condition} 
-                onChange={(e) => setCondition(e.target.value)} 
-                list="conditions-list"
-                className={!condition && errorMsg ? "border-red-300" : ""}
+          {/* Age + Gender */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Age <span className="text-red-400">*</span></Label>
+              <Input
+                type="number" placeholder="e.g. 45"
+                value={age} onChange={(e) => setAge(e.target.value)}
+                className={`text-[13px] ${errors.age ? "border-red-300" : ""}`}
               />
-              <datalist id="conditions-list">
-                {medicalConditions.map((c) => <option key={c} value={c} />)}
-              </datalist>
+              <FieldError msg={errors.age} />
             </div>
-            
-            <div className="space-y-2">
-              <Label>Known Allergies / Sensitivities</Label>
-              <Textarea placeholder="Optional: List any known allergies..." value={sensitivities} onChange={(e) => setSensitivities(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Gender <span className="text-red-400">*</span></Label>
+              <Select value={gender} onValueChange={setGender}>
+                <SelectTrigger className={`text-[13px] ${errors.gender ? "border-red-300" : ""}`}>
+                  <SelectValue placeholder="Select…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <FieldError msg={errors.gender} />
             </div>
-            
-            <div className="space-y-2">
-              <Label>Treatment Preferences</Label>
-              <Textarea placeholder="Optional: Prefer non-smoking, evening use..." value={preferences} onChange={(e) => setPreferences(e.target.value)} />
-            </div>
-            
-            <Button className="w-full bg-slate-900 hover:bg-slate-800" onClick={handleNextStep}>
-              Next Step: Clinical Constraints <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
+          </div>
+
+          {/* Condition */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Primary medical condition <span className="text-red-400">*</span></Label>
+            <ConditionPicker value={condition} onChange={setCondition} />
+            <FieldError msg={errors.condition} />
+          </div>
+
+          {/* Sensitivities */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">
+              Known allergies / sensitivities{" "}
+              <span className="text-slate-400 font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              placeholder="e.g. Latex, certain terpenes…"
+              value={sensitivities}
+              onChange={(e) => setSensitivities(e.target.value)}
+              className="text-[13px] resize-none" rows={2}
+            />
+          </div>
+
+          {/* Preferences */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">
+              Treatment preferences{" "}
+              <span className="text-slate-400 font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              placeholder="e.g. Non-smoking, evening use only…"
+              value={preferences}
+              onChange={(e) => setPreferences(e.target.value)}
+              className="text-[13px] resize-none" rows={2}
+            />
+          </div>
+
+          <Button
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
+            onClick={handleNext}
+          >
+            Continue <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       )}
 
+      {/* ── Step 2 — clinical constraints ────────────────────────────────── */}
       {step === 2 && (
-        <Card className="shadow-md border-slate-200">
-          <CardHeader className="flex flex-row items-center gap-4 bg-slate-50/50 border-b pb-4">
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-              <Shield className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <CardTitle className="text-xl">Clinical Constraints</CardTitle>
-              <CardDescription>Set system limits to ensure safe recommendations</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            
-            {licenseInfo && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-md text-sm font-medium flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                {licenseInfo} - Limits auto-applied.
-              </div>
-            )}
+        <div className="space-y-5">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Clinical constraints</h1>
+            <p className="text-sm text-slate-400 mt-0.5">Set safe limits for the recommendation engine</p>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="thcMax">Max THC Level (%) <span className="text-red-500">*</span></Label>
-                <Input id="thcMax" type="number" placeholder="e.g. 20" value={thcMax} onChange={(e) => setThcMax(e.target.value)} className={!thcMax && errorMsg ? "border-red-300" : ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cbdMin">Min CBD Level (%) <span className="text-red-500">*</span></Label>
-                <Input id="cbdMin" type="number" placeholder="e.g. 4" value={cbdMin} onChange={(e) => setCbdMin(e.target.value)} className={!cbdMin && errorMsg ? "border-red-300" : ""} />
-              </div>
+          {/* License badge */}
+          {licenseInfo && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+              <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+              <p className="text-[12px] font-medium text-blue-700">{licenseInfo} — limits auto-applied</p>
             </div>
-            
-            <div className="space-y-2">
-              <Label>Contraindications</Label>
-              <Textarea placeholder="Optional: Heart conditions..." value={contraindications} onChange={(e) => setContraindications(e.target.value)} />
+          )}
+
+          {/* Global submit error */}
+          {errors.submit && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[13px] text-red-700">{errors.submit}</p>
             </div>
-            
-            <div className="flex gap-3 pt-4 border-t">
-              <Button variant="outline" className="w-1/3" onClick={() => { setStep(1); setErrorMsg(""); }} disabled={isSavingDB}>
-                Back
-              </Button>
-              <Button className="w-2/3 bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmit} disabled={isSavingDB}>
-                {isSavingDB ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving to Database...</>
-                ) : (
-                  <>Generate & Save <ArrowRight className="ml-2 h-4 w-4" /></>
-                )}
-              </Button>
+          )}
+
+          {/* THC / CBD */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Max THC (%) <span className="text-red-400">*</span></Label>
+              <Input
+                type="number" placeholder="e.g. 20"
+                value={thcMax} onChange={(e) => setThcMax(e.target.value)}
+                className={`text-[13px] ${errors.thcMax ? "border-red-300" : ""}`}
+              />
+              <FieldError msg={errors.thcMax} />
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Min CBD (%) <span className="text-red-400">*</span></Label>
+              <Input
+                type="number" placeholder="e.g. 4"
+                value={cbdMin} onChange={(e) => setCbdMin(e.target.value)}
+                className={`text-[13px] ${errors.cbdMin ? "border-red-300" : ""}`}
+              />
+              <FieldError msg={errors.cbdMin} />
+            </div>
+          </div>
+
+          {/* Contraindications */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">
+              Contraindications{" "}
+              <span className="text-slate-400 font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              placeholder="e.g. Cardiovascular conditions, psychosis history…"
+              value={contraindications}
+              onChange={(e) => setContraindications(e.target.value)}
+              className="text-[13px] resize-none" rows={3}
+            />
+          </div>
+
+          {/* Summary box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
+            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-2">Summary</p>
+            <div className="grid grid-cols-2 gap-y-1 text-[13px]">
+              <span className="text-slate-500">Condition</span>
+              <span className="font-medium text-slate-800 truncate">{condition || "—"}</span>
+              <span className="text-slate-500">Age</span>
+              <span className="font-medium text-slate-800">{age || "—"}</span>
+              <span className="text-slate-500">Max THC</span>
+              <span className="font-medium text-slate-800">{thcMax ? `${thcMax}%` : "—"}</span>
+              <span className="text-slate-500">Min CBD</span>
+              <span className="font-medium text-slate-800">{cbdMin ? `${cbdMin}%` : "—"}</span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline" className="w-1/3 text-[13px]"
+              onClick={() => { setStep(1); setErrors({}); }}
+              disabled={isSaving}
+            >
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
+            </Button>
+            <Button
+              className="w-2/3 bg-emerald-700 hover:bg-emerald-800 text-white text-[13px]"
+              onClick={handleSubmit}
+              disabled={isSaving}
+            >
+              {isSaving
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+                : <>Save & generate <ArrowRight className="ml-2 h-3.5 w-3.5" /></>
+              }
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
