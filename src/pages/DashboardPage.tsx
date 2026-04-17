@@ -1,174 +1,169 @@
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { useAppState } from "@/context/AppContext";
-import { strains } from "@/data/mockData";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Activity, ClipboardList, MessageSquare, Plus, TrendingUp, Calendar, Leaf } from "lucide-react";
+import { 
+  Activity, Leaf, CheckCircle, Clock, PlusCircle, 
+  Loader2, TrendingUp, Calendar, ClipboardList, Info, MessageSquare 
+} from "lucide-react";
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer 
+} from 'recharts';
 
 const DashboardPage = () => {
+  const { currentUser } = useAppState();
   const navigate = useNavigate();
-  const { patientProfile, usageRecords, feedbacks, recommendations } = useAppState();
+  const isDoctor = currentUser?.role === 'doctor';
 
-  const getStrainName = (id: number) => strains.find((s) => s.strainId === id)?.name ?? "Unknown";
+  const [patients, setPatients] = useState<any[]>([]);
+  const [strains, setStrains] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [usageHistory, setUsageHistory] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
 
-  const avgEffectiveness = feedbacks.length > 0
-    ? (feedbacks.reduce((sum, f) => sum + f.effectivenessScore, 0) / feedbacks.length).toFixed(1)
-    : "—";
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        if (isDoctor) {
+          const { data } = await supabase.from('patients').select('id, users(full_name)');
+          if (data) setPatients(data);
+        } else if (currentUser?.id) {
+          loadPatientAnalytics(currentUser.id);
+        }
+        const { data: sData } = await supabase.from('strains').select('id, name');
+        if (sData) setStrains(sData);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, [currentUser]);
 
-  const sideEffectCounts: Record<string, number> = {};
-  feedbacks.forEach((f) => {
-    if (f.sideEffects && f.sideEffects !== "None") {
-      sideEffectCounts[f.sideEffects] = (sideEffectCounts[f.sideEffects] || 0) + 1;
-    }
-  });
+  const loadPatientAnalytics = async (patientId: string) => {
+    if (!patientId) return;
+    setSelectedPatientId(patientId);
+    
+    // מניעת שגיאת 400 במידה וזה משתמש דמו
+    if (patientId === "demo-id") return;
+
+    const { data: usage } = await supabase.from('usage_records').select(`
+      id, usage_date, dosage, consumption_method, strains (name),
+      feedback (effectiveness_score)
+    `).eq('patient_id', patientId).order('usage_date', { ascending: true });
+
+    const { data: recs } = await supabase.from('recommendations').select(`
+      id, recommendation_date, match_score, explanation, strains (name)
+    `).eq('patient_id', patientId).order('recommendation_date', { ascending: false });
+
+    setUsageHistory(usage || []);
+    setRecommendations(recs || []);
+
+    const formattedData = usage
+      ?.filter((u: any) => u.feedback && u.feedback.length > 0)
+      .map((u: any) => ({
+        date: new Date(u.usage_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }),
+        score: u.feedback[0].effectiveness_score,
+        strain: u.strains?.name
+      })) || [];
+    
+    setChartData(formattedData);
+  };
+
+  if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-green-600" /></div>;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="gradient-header px-6 py-8 text-primary-foreground">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-display font-bold">MediCanna Dashboard</h1>
-          <p className="text-sm opacity-90 mt-1">
-            {patientProfile ? `Welcome back • ${patientProfile.medicalConditions}` : "Overview of your treatment journey"}
-          </p>
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 p-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border shadow-sm">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{isDoctor ? "Clinical Dashboard" : "My Dashboard"}</h1>
+          <p className="text-slate-500">Treatment efficacy tracking</p>
         </div>
-      </header>
+        {isDoctor && (
+          <div className="w-full md:w-80">
+            <Select value={selectedPatientId} onValueChange={loadPatientAnalytics}>
+              <SelectTrigger className="bg-slate-50 border-slate-200"><SelectValue placeholder="Select Patient..." /></SelectTrigger>
+              <SelectContent>{patients.map(p => <SelectItem key={p.id} value={p.id}>{p.users?.full_name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
-      <main className="max-w-4xl mx-auto px-4 -mt-4 pb-12 space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="stat-card shadow-sm">
-            <ClipboardList className="h-4 w-4 text-primary" />
-            <span className="text-2xl font-display font-bold">{recommendations.length}</span>
-            <span className="text-xs text-muted-foreground">Recommendations</span>
-          </div>
-          <div className="stat-card shadow-sm">
-            <Activity className="h-4 w-4 text-info" />
-            <span className="text-2xl font-display font-bold">{usageRecords.length}</span>
-            <span className="text-xs text-muted-foreground">Usage Records</span>
-          </div>
-          <div className="stat-card shadow-sm">
-            <MessageSquare className="h-4 w-4 text-success" />
-            <span className="text-2xl font-display font-bold">{feedbacks.length}</span>
-            <span className="text-xs text-muted-foreground">Feedback Given</span>
-          </div>
-          <div className="stat-card shadow-sm">
-            <TrendingUp className="h-4 w-4 text-warning" />
-            <span className="text-2xl font-display font-bold">{avgEffectiveness}</span>
-            <span className="text-xs text-muted-foreground">Avg. Effectiveness</span>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button className="h-auto py-4 flex flex-col gap-1" onClick={() => navigate("/patient-input")}>
-            <Plus className="h-5 w-5" />
-            <span className="text-sm">New Recommendation</span>
-          </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col gap-1" onClick={() => navigate("/feedback")}>
-            <MessageSquare className="h-5 w-5" />
-            <span className="text-sm">Submit Feedback</span>
-          </Button>
-        </div>
-
-        {/* Past Recommendations */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-primary" /> Past Recommendations
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recommendations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No recommendations yet.</p>
-            ) : (
-              recommendations.map((rec) => (
-                <div key={rec.recommendationId} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                  <Leaf className="h-5 w-5 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{getStrainName(rec.strainId)}</p>
-                    <p className="text-xs text-muted-foreground truncate">{rec.explanation}</p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 text-xs">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {rec.recommendationDate}
-                  </Badge>
+      {!selectedPatientId ? (
+        <Card className="border-dashed border-2 h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+          <Activity className="h-12 w-12 mb-2 opacity-20" />
+          <p className="font-medium">Waiting for data selection...</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3 space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="h-5 w-5 text-blue-600" /> Efficacy Trend</CardTitle></CardHeader>
+              <CardContent>
+                <div className="h-[300px] w-full mt-4">
+                  {chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis domain={[0, 5]} fontSize={12} tickLine={false} axisLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <Area type="monotone" dataKey="score" stroke="#2563eb" strokeWidth={3} fillOpacity={0.1} fill="#2563eb" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-slate-50 rounded-lg border-dashed border border-slate-200">
+                      <p className="text-sm text-slate-400">Not enough data to graph</p>
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Usage History */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-info" /> Usage History
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 text-muted-foreground font-medium">Date</th>
-                    <th className="text-left py-2 text-muted-foreground font-medium">Strain</th>
-                    <th className="text-left py-2 text-muted-foreground font-medium">Dosage</th>
-                    <th className="text-left py-2 text-muted-foreground font-medium">Method</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usageRecords.map((u) => (
-                    <tr key={u.usageId} className="border-b last:border-0">
-                      <td className="py-2">{u.usageDate}</td>
-                      <td className="py-2 font-medium">{getStrainName(u.strainId)}</td>
-                      <td className="py-2">{u.dosage}</td>
-                      <td className="py-2">{u.consumptionMethod}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Feedback Trends */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-success" /> Feedback Trends
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Effectiveness Over Time</p>
-              <div className="flex items-end gap-2 h-24">
-                {feedbacks.map((f) => (
-                  <div key={f.feedbackId} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full rounded-t-md gradient-primary"
-                      style={{ height: `${(f.effectivenessScore / 5) * 100}%` }}
-                    />
-                    <span className="text-xs text-muted-foreground">{f.effectivenessScore}/5</span>
+            <Card>
+              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Leaf className="h-5 w-5 text-green-600" /> Recommendations</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {recommendations.length > 0 ? recommendations.map(rec => (
+                  <div key={rec.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex justify-between">
+                    <div>
+                      <p className="font-bold">{rec.strains?.name}</p>
+                      <p className="text-xs text-slate-500 mt-1">{rec.explanation}</p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 h-fit">{rec.match_score}%</Badge>
                   </div>
-                ))}
-              </div>
-            </div>
-            {Object.keys(sideEffectCounts).length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Reported Side Effects</p>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(sideEffectCounts).map(([effect, count]) => (
-                    <Badge key={effect} variant="secondary">
-                      {effect} ({count})
-                    </Badge>
-                  ))}
+                )) : <p className="text-sm text-slate-400">No records found</p>}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="bg-slate-900 text-white border-none">
+              <CardContent className="pt-6">
+                <p className="text-[10px] uppercase opacity-50 font-bold mb-4">Quick Stats</p>
+                <div className="space-y-4">
+                  <div><p className="text-2xl font-bold">{usageHistory.length}</p><p className="text-xs opacity-60">Usage Logs</p></div>
+                  <div><p className="text-2xl font-bold">{recommendations.length}</p><p className="text-xs opacity-60">Recs</p></div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </main>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-100">
+              <CardHeader><CardTitle className="text-base">Actions</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                <Button className="w-full justify-start gap-2" variant="outline" onClick={() => navigate("/feedback")}><MessageSquare className="h-4 w-4" /> Feedback</Button>
+                <Button className="w-full justify-start gap-2" variant="outline" onClick={() => navigate("/patient-input")}><ClipboardList className="h-4 w-4" /> Profiling</Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

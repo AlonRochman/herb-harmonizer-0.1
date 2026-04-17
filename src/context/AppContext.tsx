@@ -12,12 +12,23 @@ import {
   sampleRecommendations,
 } from "@/data/mockData";
 
+// הגדרת טיפוס למשתמש המחובר (סימולציה)
+interface CurrentUser {
+  id?: string;
+  full_name: string;
+  role: 'doctor' | 'patient';
+}
+
 interface AppState {
   patientProfile: PatientProfile | null;
   clinicalConstraints: ClinicalConstraints | null;
   usageRecords: UsageRecord[];
-  feedbacks: Feedback[];
+  feedbacks: Feedback[]; 
   recommendations: Recommendation[];
+  // משתני ה-Auth החדשים
+  currentUser: CurrentUser | null;
+  setCurrentUser: (user: CurrentUser | null) => void;
+  // פונקציות העדכון הקיימות
   setPatientProfile: (p: PatientProfile) => void;
   setClinicalConstraints: (c: ClinicalConstraints) => void;
   addUsageRecord: (u: UsageRecord) => void;
@@ -33,6 +44,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [usageRecords, setUsageRecords] = useState<UsageRecord[]>(sampleUsageRecords);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>(sampleFeedback);
   const [recommendations, setRecommendations] = useState<Recommendation[]>(sampleRecommendations);
+  
+  // ה-State החדש של המשתמש המחובר
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
   const addUsageRecord = (u: UsageRecord) => setUsageRecords((prev) => [...prev, u]);
   const addFeedback = (f: Feedback) => setFeedbacks((prev) => [...prev, f]);
@@ -46,6 +60,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         usageRecords,
         feedbacks,
         recommendations,
+        currentUser,
+        setCurrentUser,
         setPatientProfile,
         setClinicalConstraints,
         addUsageRecord,
