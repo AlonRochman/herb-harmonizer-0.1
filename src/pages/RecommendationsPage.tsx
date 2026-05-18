@@ -145,20 +145,13 @@ const StrainCard = ({ strain, rank }: { strain: ScoredStrain; rank: number }) =>
               ))}
             </div>
           )}
-          <div className="flex gap-2 pt-1">
+          <div className="pt-1">
             <Button
               size="sm"
               className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs h-8"
               onClick={() => navigate("/feedback")}
             >
               Log usage
-            </Button>
-            <Button
-              size="sm" variant="outline"
-              className="text-xs h-8 text-slate-600"
-              onClick={() => navigate("/strains")}
-            >
-              View in catalog
             </Button>
           </div>
         </div>
