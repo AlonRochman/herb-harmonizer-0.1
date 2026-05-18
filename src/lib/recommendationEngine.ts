@@ -17,172 +17,150 @@ export interface StrainRow {
 export interface ScoredStrain extends StrainRow {
   matchScore: number;
   reasons: string[];
-  // Feedback-derived fields — null means no data yet
   avgEffectiveness: number | null;
   feedbackCount: number;
-  sideEffectRate: number | null; // 0–1 fraction of reports with side effects
+  sideEffectRate: number | null;
 }
 
-// ─── Feedback intelligence ────────────────────────────────────────────────────
+export type ConditionIndex = Map<string, {
+  conditions: string[];
+  primaryCondition: string | null;
+  evidenceByCondition: Record<string, "strong" | "moderate" | "anecdotal">;
+}>;
 
-/**
- * Fetches aggregated feedback for every strain, restricted to patients
- * whose medical_conditions match the current patient's condition.
- *
- * Join path:
- *   feedback.usage_id → usage_records.id
- *   usage_records.strain_id → (strain filter)
- *   usage_records.patient_id → patient_profiles.patient_id
- *   patient_profiles.medical_conditions → condition filter
- *
- * Returns a map of strain_id → { avgScore, count, sideEffectRate }
- */
+// ─── Condition index from strain_conditions table ─────────────────────────────
+
+export async function fetchConditionIndex(): Promise<ConditionIndex> {
+  const index: ConditionIndex = new Map();
+  try {
+    const { data, error } = await supabase
+      .from("strain_conditions")
+      .select("strain_id, condition, evidence_level, is_primary");
+
+    if (error) {
+      console.warn("[ConditionIndex] strain_conditions not available — using legacy fallback");
+      return index;
+    }
+
+    for (const row of (data ?? [])) {
+      const sid = row.strain_id as string;
+      if (!index.has(sid)) index.set(sid, { conditions: [], primaryCondition: null, evidenceByCondition: {} });
+      const entry = index.get(sid)!;
+      entry.conditions.push(row.condition as string);
+      entry.evidenceByCondition[row.condition as string] = row.evidence_level as "strong" | "moderate" | "anecdotal";
+      if (row.is_primary) entry.primaryCondition = row.condition as string;
+    }
+  } catch (err) {
+    console.error("[ConditionIndex] error:", err);
+  }
+  return index;
+}
+
+// ─── Feedback index ───────────────────────────────────────────────────────────
+
 export async function fetchFeedbackIndex(
   condition: string
 ): Promise<Map<string, { avgScore: number; count: number; sideEffectRate: number }>> {
   const index = new Map<string, { avgScore: number; count: number; sideEffectRate: number }>();
-
   if (!condition.trim()) return index;
 
   try {
-    // 1. Find patient_ids with the same (or similar) medical condition
-    //    We use ilike for partial matching (e.g. "chronic pain" matches "pain")
-    const { data: matchingProfiles, error: profileError } = await supabase
+    const { data: profiles } = await supabase
       .from("patient_profiles")
-      .select("patient_id, medical_conditions")
+      .select("patient_id")
       .ilike("medical_conditions", `%${condition}%`);
 
-    if (profileError || !matchingProfiles || matchingProfiles.length === 0) {
-      return index;
-    }
+    if (!profiles?.length) return index;
 
-    const patientIds = matchingProfiles.map((p) => p.patient_id);
-
-    // 2. Fetch all usage_records for those patients, with embedded feedback
-    const { data: usageRows, error: usageError } = await supabase
+    const { data: usageRows } = await supabase
       .from("usage_records")
-      .select(`
-        id,
-        strain_id,
-        patient_id,
-        feedback ( effectiveness_score, side_effects )
-      `)
-      .in("patient_id", patientIds);
+      .select("id, strain_id, patient_id, feedback ( effectiveness_score, side_effects )")
+      .in("patient_id", profiles.map((p) => p.patient_id));
 
-    if (usageError || !usageRows) return index;
+    if (!usageRows) return index;
 
-    // 3. Aggregate per strain_id
-    const accumulator = new Map<
-      string,
-      { scores: number[]; sideEffectCount: number; total: number }
-    >();
-
+    const acc = new Map<string, { scores: number[]; sideEffectCount: number; total: number }>();
     for (const usage of usageRows) {
-      const strainId = usage.strain_id as string;
-      if (!strainId) continue;
-
-      // feedback can be an array (Supabase returns [] if no rows)
-      const feedbackRows = Array.isArray(usage.feedback)
-        ? usage.feedback
-        : usage.feedback
-        ? [usage.feedback]
-        : [];
-
-      for (const fb of feedbackRows) {
+      const sid = usage.strain_id as string;
+      if (!sid) continue;
+      const fbs = Array.isArray(usage.feedback) ? usage.feedback : usage.feedback ? [usage.feedback] : [];
+      for (const fb of fbs) {
         if (fb.effectiveness_score == null) continue;
-
-        if (!accumulator.has(strainId)) {
-          accumulator.set(strainId, { scores: [], sideEffectCount: 0, total: 0 });
-        }
-
-        const acc = accumulator.get(strainId)!;
-        acc.scores.push(fb.effectiveness_score as number);
-        acc.total += 1;
-
-        // Side effects: treat anything that isn't "None" / empty as a side effect
+        if (!acc.has(sid)) acc.set(sid, { scores: [], sideEffectCount: 0, total: 0 });
+        const a = acc.get(sid)!;
+        a.scores.push(fb.effectiveness_score as number);
+        a.total += 1;
         const se = (fb.side_effects as string ?? "").toLowerCase().trim();
-        if (se && se !== "none" && se !== "no" && se !== "אין") {
-          acc.sideEffectCount += 1;
-        }
+        if (se && se !== "none" && se !== "no" && se !== "אין") a.sideEffectCount += 1;
       }
     }
 
-    // 4. Convert to the final map
-    for (const [strainId, acc] of accumulator.entries()) {
-      if (acc.scores.length === 0) continue;
-      const avgScore =
-        acc.scores.reduce((sum, s) => sum + s, 0) / acc.scores.length;
-      index.set(strainId, {
-        avgScore,
-        count: acc.total,
-        sideEffectRate: acc.total > 0 ? acc.sideEffectCount / acc.total : 0,
+    for (const [sid, a] of acc.entries()) {
+      if (!a.scores.length) continue;
+      index.set(sid, {
+        avgScore: a.scores.reduce((s, x) => s + x, 0) / a.scores.length,
+        count: a.total,
+        sideEffectRate: a.total > 0 ? a.sideEffectCount / a.total : 0,
       });
     }
   } catch (err) {
-    // Never crash the page — just return an empty index
-    console.error("[FeedbackIndex] fetch error:", err);
+    console.error("[FeedbackIndex] error:", err);
   }
-
   return index;
 }
 
-// ─── Scoring helpers ──────────────────────────────────────────────────────────
+// ─── Scoring constants ────────────────────────────────────────────────────────
 
-const toStr = (val: unknown): string => {
+const EVIDENCE_BONUS: Record<"strong" | "moderate" | "anecdotal", number> = {
+  strong: 60, moderate: 40, anecdotal: 20,
+};
+
+const TERPENE_BONUS: [string, string, string][] = [
+  ["pain",         "myrcene",       "Terpene: Myrcene — analgesic"],
+  ["anxiety",      "linalool",      "Terpene: Linalool — anxiolytic"],
+  ["insomnia",     "myrcene",       "Terpene: Myrcene — sedative"],
+  ["inflammation", "caryophyllene", "Terpene: Caryophyllene — anti-inflammatory"],
+  ["depression",   "limonene",      "Terpene: Limonene — mood-elevating"],
+  ["ptsd",         "pinene",        "Terpene: Pinene — promotes alertness"],
+  ["fatigue",      "terpinolene",   "Terpene: Terpinolene — energising"],
+  ["stress",       "limonene",      "Terpene: Limonene — stress relief"],
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const toTerpStr = (val: unknown): string => {
   if (!val) return "";
   if (Array.isArray(val)) return val.join(" ").toLowerCase();
   if (typeof val === "string") {
-    try {
-      const p = JSON.parse(val);
-      if (Array.isArray(p)) return p.join(" ").toLowerCase();
-    } catch {}
+    try { const p = JSON.parse(val); if (Array.isArray(p)) return p.join(" ").toLowerCase(); } catch {}
+    return val.toLowerCase();
+  }
+  return "";
+};
+
+const toLegacyStr = (val: unknown): string => {
+  if (!val) return "";
+  if (Array.isArray(val)) return val.join(" ").toLowerCase();
+  if (typeof val === "string") {
+    try { const p = JSON.parse(val); if (Array.isArray(p)) return p.join(" ").toLowerCase(); } catch {}
     return val.toLowerCase();
   }
   return JSON.stringify(val).toLowerCase();
 };
 
-// ─── Feedback score → bonus points ───────────────────────────────────────────
-//
-// Scale: effectiveness_score is 1–5 (from DB).
-// We convert avg into a bonus of -20 … +30 points:
-//
-//   avg ≥ 4.5  → +30   (outstanding)
-//   avg ≥ 4.0  → +22   (great)
-//   avg ≥ 3.5  → +15   (good)
-//   avg ≥ 3.0  → +8    (moderate)
-//   avg ≥ 2.5  → +0    (neutral)
-//   avg < 2.5  → -10   (poor — mild penalty)
-//
-// An extra -10 penalty if sideEffectRate > 50 %.
-// A confidence multiplier scales the bonus when count < 5 (few data points).
-
-function feedbackBonus(
-  avgScore: number,
-  count: number,
-  sideEffectRate: number
-): { points: number; label: string } {
-  // Raw bonus by average
-  let raw: number;
-  let label: string;
-
-  if (avgScore >= 4.5) { raw = 30; label = `Highly effective (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-  else if (avgScore >= 4.0) { raw = 22; label = `Very effective (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-  else if (avgScore >= 3.5) { raw = 15; label = `Effective (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-  else if (avgScore >= 3.0) { raw =  8; label = `Moderately effective (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-  else if (avgScore >= 2.5) { raw =  0; label = `Mixed results (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-  else { raw = -10; label = `Low efficacy reported (avg ${avgScore.toFixed(1)}/5, ${count} reports)`; }
-
-  // Confidence scaling — fewer than 5 reports → reduce bonus proportionally
-  const confidence = Math.min(count / 5, 1); // 0..1
-  const points = Math.round(raw * confidence);
-
-  // Side-effect penalty
-  const sePenalty = sideEffectRate > 0.5 ? -10 : 0;
-
-  return { points: points + sePenalty, label };
+function feedbackBonus(avg: number, count: number, seRate: number): { points: number; label: string } {
+  let raw: number; let label: string;
+  if      (avg >= 4.5) { raw = 30;  label = `Highly effective (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  else if (avg >= 4.0) { raw = 22;  label = `Very effective (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  else if (avg >= 3.5) { raw = 15;  label = `Effective (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  else if (avg >= 3.0) { raw =  8;  label = `Moderately effective (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  else if (avg >= 2.5) { raw =  0;  label = `Mixed results (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  else                 { raw = -10; label = `Low efficacy reported (avg ${avg.toFixed(1)}/5, ${count} reports)`; }
+  const confidence = Math.min(count / 5, 1);
+  return { points: Math.round(raw * confidence) + (seRate > 0.5 ? -10 : 0), label };
 }
 
-// ─── Main scoring function ────────────────────────────────────────────────────
+// ─── Main scoring ─────────────────────────────────────────────────────────────
 
 export function scoreStrains(
   strains: StrainRow[],
@@ -190,124 +168,114 @@ export function scoreStrains(
   age: number,
   thcMax: number | null,
   cbdMin: number | null,
-  feedbackIndex: Map<string, { avgScore: number; count: number; sideEffectRate: number }>
+  feedbackIndex: Map<string, { avgScore: number; count: number; sideEffectRate: number }>,
+  conditionIndex: ConditionIndex,
 ): ScoredStrain[] {
-  const conditionMap: [string, string[]][] = [
-    ["pain",         ["pain"]],
-    ["chronic pain", ["pain", "severe pain", "mild pain"]],
-    ["insomnia",     ["insomnia", "sleep"]],
-    ["anxiety",      ["anxiety", "stress"]],
-    ["inflammation", ["inflammation"]],
-    ["depression",   ["depression", "mood"]],
-    ["nausea",       ["nausea"]],
-    ["ptsd",         ["ptsd", "stress", "anxiety"]],
-    ["epilepsy",     ["seizures", "epilepsy"]],
-    ["fibromyalgia", ["pain", "inflammation"]],
-    ["fatigue",      ["fatigue", "focus"]],
-    ["appetite",     ["appetite loss"]],
-  ];
-
-  const terpeneBonus: [string, string, string][] = [
-    ["pain",         "myrcene",       "Terpene: Myrcene — analgesic"],
-    ["anxiety",      "linalool",      "Terpene: Linalool — anxiolytic"],
-    ["insomnia",     "myrcene",       "Terpene: Myrcene — sedative"],
-    ["inflammation", "caryophyllene", "Terpene: Caryophyllene — anti-inflammatory"],
-    ["depression",   "limonene",      "Terpene: Limonene — mood-elevating"],
-    ["ptsd",         "pinene",        "Terpene: Pinene — promotes alertness"],
-  ];
-
   return strains.map((strain) => {
     let score = 0;
     const reasons: string[] = [];
+    const terpenes = toTerpStr(strain.terpenes) || toTerpStr(strain.terpenes_profile);
+    const cat = (strain.category ?? "").toLowerCase();
 
-    const medUses  = toStr(strain.medical_uses);
-    const terpenes = toStr(strain.terpenes) || toStr(strain.terpenes_profile);
-    const cat      = (strain.category ?? "").toLowerCase();
+    // ── A: strain_conditions table (primary, evidence-rated) ─────────────────
+    const scEntry = conditionIndex.get(strain.id);
+    let matchedViaTable = false;
 
-    // ── Step A: condition → medical_uses match (+50) ──────────────────────
-    for (const [userCond, keywords] of conditionMap) {
-      if (conditions.includes(userCond)) {
-        for (const kw of keywords) {
-          if (medUses.includes(kw)) {
-            score += 50;
-            reasons.push(`Matched for ${userCond}`);
-            break;
+    if (scEntry?.conditions.length) {
+      for (const dbCond of scEntry.conditions) {
+        const d = dbCond.toLowerCase();
+        const hit =
+          conditions.includes(d) || d.includes(conditions.split(" ")[0]) ||
+          (conditions.includes("pain")        && d.includes("pain"))       ||
+          (conditions.includes("anxiety")     && d === "anxiety")          ||
+          (conditions.includes("insomnia")    && d === "insomnia")         ||
+          (conditions.includes("ptsd")        && d === "ptsd")             ||
+          (conditions.includes("epilepsy")    && (d === "epilepsy" || d === "seizures")) ||
+          (conditions.includes("depression")  && d === "depression")       ||
+          (conditions.includes("fatigue")     && d === "fatigue")          ||
+          (conditions.includes("inflammation")&& d === "inflammation")     ||
+          (conditions.includes("nausea")      && d === "nausea")           ||
+          (conditions.includes("stress")      && d === "stress");
+
+        if (hit) {
+          const ev = scEntry.evidenceByCondition[dbCond] ?? "anecdotal";
+          score += EVIDENCE_BONUS[ev];
+          const isPrimary = scEntry.primaryCondition === dbCond;
+          reasons.push(`${isPrimary ? "Primary" : "Secondary"} indication: ${dbCond} (${ev} evidence)`);
+          matchedViaTable = true;
+          break;
+        }
+      }
+    }
+
+    // ── B: legacy medical_uses fallback (if migration not yet run) ───────────
+    if (!matchedViaTable) {
+      const legacyUses = toLegacyStr(strain.medical_uses);
+      const legacyMap: [string, string[]][] = [
+        ["pain",         ["pain", "severe pain", "mild pain"]],
+        ["chronic pain", ["pain", "severe pain"]],
+        ["insomnia",     ["insomnia", "sleep"]],
+        ["anxiety",      ["anxiety", "stress"]],
+        ["inflammation", ["inflammation"]],
+        ["depression",   ["depression", "mood"]],
+        ["nausea",       ["nausea"]],
+        ["ptsd",         ["ptsd", "stress"]],
+        ["epilepsy",     ["seizures", "epilepsy"]],
+        ["fatigue",      ["fatigue", "focus"]],
+        ["appetite",     ["appetite loss"]],
+      ];
+      for (const [uc, kws] of legacyMap) {
+        if (conditions.includes(uc)) {
+          for (const kw of kws) {
+            if (legacyUses.includes(kw)) {
+              score += 40; reasons.push(`Matched for ${uc}`); break;
+            }
           }
         }
       }
     }
 
-    // ── Step B: category bonus (+15–20) ───────────────────────────────────
+    // ── C: category bonus ────────────────────────────────────────────────────
     if ((conditions.includes("pain") || conditions.includes("insomnia") || conditions.includes("ptsd")) && cat === "indica") {
-      score += 20; reasons.push("Indica — supports relaxation & sleep");
+      score += 18; reasons.push("Indica — supports relaxation & sleep");
     }
     if ((conditions.includes("depression") || conditions.includes("fatigue")) && cat === "sativa") {
-      score += 20; reasons.push("Sativa — supports mood & energy");
+      score += 18; reasons.push("Sativa — supports mood & energy");
     }
     if (conditions.includes("anxiety") && cat === "hybrid") {
-      score += 15; reasons.push("Hybrid — balanced profile for anxiety");
+      score += 14; reasons.push("Hybrid — balanced profile for anxiety");
     }
 
-    // ── Step C: terpene bonus (+15 each) ─────────────────────────────────
-    for (const [cond, terp, label] of terpeneBonus) {
+    // ── D: terpene bonus ─────────────────────────────────────────────────────
+    for (const [cond, terp, label] of TERPENE_BONUS) {
       if (conditions.includes(cond) && terpenes.includes(terp)) {
-        score += 15; reasons.push(label);
+        score += 12; reasons.push(label);
       }
     }
 
-    // ── Step D: high CBD for specific conditions (+10) ────────────────────
-    if (
-      (conditions.includes("inflammation") ||
-        conditions.includes("anxiety") ||
-        conditions.includes("epilepsy")) &&
-      strain.cbd_level > 5
-    ) {
-      score += 10;
-      reasons.push("High CBD — reduced psychoactive burden");
+    // ── E: high CBD bonus ────────────────────────────────────────────────────
+    if ((conditions.includes("inflammation") || conditions.includes("anxiety") || conditions.includes("epilepsy")) && strain.cbd_level > 5) {
+      score += 10; reasons.push("High CBD — reduced psychoactive burden");
     }
 
-    // ── Step E: age safety adjustment ────────────────────────────────────
-    if (age > 60 && strain.thc_level > 20) {
-      score -= 15;
-    }
+    // ── F: age safety ────────────────────────────────────────────────────────
+    if (age > 60 && strain.thc_level > 20) score -= 15;
 
-    // ── Step F: fallback for zero-score strains ───────────────────────────
-    if (score === 0 && (terpenes || cat)) {
-      if (conditions.includes("pain") && (terpenes.includes("myrcene") || cat === "indica")) {
-        score += 25; reasons.push("Terpene/category profile aligns with pain relief");
-      }
-      if (conditions.includes("anxiety") && (terpenes.includes("linalool") || cat === "hybrid")) {
-        score += 25; reasons.push("Terpene/category profile aligns with anxiety relief");
-      }
-      if (conditions.includes("insomnia") && cat === "indica") {
-        score += 25; reasons.push("Indica category supports sleep");
-      }
-    }
-
-    // ── Step G: REAL FEEDBACK BOOST (replaces randomBoost) ───────────────
-    const fbData = feedbackIndex.get(strain.id);
+    // ── G: feedback boost ────────────────────────────────────────────────────
+    const fb = feedbackIndex.get(strain.id);
     let avgEffectiveness: number | null = null;
     let feedbackCount = 0;
     let sideEffectRate: number | null = null;
 
-    if (fbData) {
-      avgEffectiveness = fbData.avgScore;
-      feedbackCount    = fbData.count;
-      sideEffectRate   = fbData.sideEffectRate;
-
-      const { points, label } = feedbackBonus(
-        fbData.avgScore,
-        fbData.count,
-        fbData.sideEffectRate
-      );
-
-      if (points !== 0) {
-        score += points;
-        reasons.push(label);
-      }
+    if (fb) {
+      avgEffectiveness = fb.avgScore;
+      feedbackCount    = fb.count;
+      sideEffectRate   = fb.sideEffectRate;
+      const { points, label } = feedbackBonus(fb.avgScore, fb.count, fb.sideEffectRate);
+      if (points !== 0) { score += points; reasons.push(label); }
     }
 
-    // ── Step H: constraint satisfaction micro-bonus (+5 each) ─────────────
+    // ── H: constraint micro-bonus ────────────────────────────────────────────
     if (thcMax !== null && strain.thc_level <= thcMax) score += 5;
     if (cbdMin !== null && strain.cbd_level >= cbdMin) score += 5;
 
