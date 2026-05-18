@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAppState } from "@/context/AppContext";
+import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,7 +67,7 @@ const EmptyState = ({
 const DashboardPage = () => {
   const { currentUser } = useAppState();
   const navigate = useNavigate();
-  const isDoctor = currentUser?.role === "doctor";
+  const isDoctor = useIsDoctor();
 
   const [patients, setPatients]             = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
