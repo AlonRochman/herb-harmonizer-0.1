@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { useAppState } from "@/context/AppContext";
+import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,6 +87,7 @@ const SideEffectPicker = ({
 const FeedbackPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAppState();
+  const isDoctor = useIsDoctor();
 
   const [patients, setPatients]             = useState<any[]>([]);
   const [usageRecords, setUsageRecords]     = useState<any[]>([]);
@@ -105,7 +107,7 @@ const FeedbackPage = () => {
     const load = async () => {
       try {
         // if patient is logged in, auto-select them
-        if (currentUser?.id && currentUser.role === "patient") {
+        if (currentUser?.id && !isDoctor) {
           setSelectedPatientId(currentUser.id);
           await loadUsage(currentUser.id);
         } else {
@@ -196,7 +198,7 @@ const FeedbackPage = () => {
           )}
 
           {/* Patient select — only shown for doctors / demo */}
-          {currentUser?.role !== "patient" && (
+          {!isDoctor && (
             <div className="space-y-1.5">
               <Label className="text-[13px]">Patient</Label>
               <Select value={selectedPatientId} onValueChange={loadUsage}>
