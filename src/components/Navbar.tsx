@@ -5,13 +5,14 @@ import { useIsDoctor } from "@/hooks/useIsDoctor";
 import {
   Leaf, LayoutDashboard, Database, LogOut, User,
   ClipboardList, Sparkles, MessageSquare, Menu, X,
-  BarChart3, BookOpen,
+  BarChart3, BookOpen, Scale,
 } from "lucide-react";
 
 const NAV_PATIENT = [
   { label: "Home",            path: "/",                icon: LayoutDashboard },
   { label: "My Profile",      path: "/patient-input",   icon: ClipboardList   },
   { label: "Recommendations", path: "/recommendations", icon: Sparkles        },
+  { label: "Dosage",          path: "/dosage",          icon: Scale           },
   { label: "Feedback",        path: "/feedback",        icon: MessageSquare   },
   { label: "Strains",         path: "/strains",         icon: Database        },
   { label: "Info Centre",     path: "/info",            icon: BookOpen        },
@@ -21,6 +22,7 @@ const NAV_DOCTOR = [
   { label: "Dashboard",   path: "/dashboard",     icon: BarChart3       },
   { label: "Profiling",   path: "/patient-input", icon: ClipboardList   },
   { label: "Strains",     path: "/strains",       icon: Database        },
+  { label: "Dosage",      path: "/dosage",        icon: Scale           },
   { label: "Feedback",    path: "/feedback",      icon: MessageSquare   },
   { label: "Info Centre", path: "/info",          icon: BookOpen        },
 ];
@@ -78,7 +80,7 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Right side — user badge + logout */}
+          {/* Right — user + logout */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-1.5 pr-3 py-1">
               <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -122,7 +124,6 @@ const Navbar = () => {
             className="absolute top-14 left-0 right-0 bg-white border-b border-slate-200 shadow-lg p-4 space-y-1"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* User info */}
             <div className="flex items-center gap-3 px-3 py-2 mb-2 border-b border-slate-100 pb-3">
               <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
                 <User className="h-4 w-4 text-emerald-700" />
@@ -138,9 +139,7 @@ const Navbar = () => {
                 key={path}
                 onClick={() => { navigate(path); setMobileOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors text-left ${
-                  isActive(path)
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "text-slate-600 hover:bg-slate-50"
+                  isActive(path) ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <Icon className="h-4 w-4" />
