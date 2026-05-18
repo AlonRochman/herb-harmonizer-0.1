@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/context/AppContext";
+import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { supabase } from "../lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,7 @@ const FieldError = ({ msg }: { msg?: string }) =>
 const PatientInputPage = () => {
   const navigate = useNavigate();
   const { setPatientProfile, setClinicalConstraints, currentUser } = useAppState();
-  const isDoctor = currentUser?.role === "doctor";
+  const isDoctor = useIsDoctor();
 
   // DB
   const [dbPatients, setDbPatients]   = useState<any[]>([]);
