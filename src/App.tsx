@@ -1,11 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppState } from "./context/AppContext";
 
-// Pages
 import Index from "./pages/Index";
 import PatientInputPage from "./pages/PatientInputPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
@@ -18,11 +16,9 @@ import Navbar from "./components/Navbar";
 
 const queryClient = new QueryClient();
 
-// קומפוננטת הניתוב - בודקת אם יש משתמש מחובר
 const AppRoutes = () => {
   const { currentUser } = useAppState();
 
-  // אם אין משתמש מחובר - מציגים רק את דף הלוגין
   if (!currentUser) {
     return (
       <Routes>
@@ -32,7 +28,6 @@ const AppRoutes = () => {
     );
   }
 
-  // אם המשתמש מחובר - מציגים את כל המערכת
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
@@ -56,7 +51,6 @@ const App = () => (
     <TooltipProvider>
       <AppProvider>
         <Toaster />
-        <Sonner />
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
