@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import FeedbackPage from "./pages/FeedbackPage";
 import StrainsCatalogPage from "./pages/StrainsCatalogPage";
 import InfoCenterPage from "./pages/InfoCenterPage";
+import DosageCalculatorPage from "./pages/DosageCalculatorPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navbar";
@@ -41,6 +42,7 @@ const AppRoutes = () => {
           <Route path="/feedback"        element={<FeedbackPage />} />
           <Route path="/strains"         element={<StrainsCatalogPage />} />
           <Route path="/info"            element={<InfoCenterPage />} />
+          <Route path="/dosage"          element={<DosageCalculatorPage />} />
           <Route path="*"                element={<NotFound />} />
         </Routes>
       </main>
