@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAppState } from "@/context/AppContext";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Info, AlertCircle } from "lucide-react";
+import { AlertCircle, Info, CheckCircle2, Leaf, FlaskConical, Zap, Moon, Heart, Brain } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
 
@@ -17,142 +16,317 @@ interface ScoredStrain {
   terpenes: string | null;
   terpenes_profile: string | null;
   medical_uses: unknown;
+  producer: string | null;
   matchScore: number;
   reasons: string[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * FIX BUG 2+3: medical_uses יכול להיות null, string, או JSON array מה-DB.
- * הפונקציה מחזירה תמיד string lowercase בטוח לחיפוש.
- */
 const toSearchString = (val: unknown): string => {
   if (!val) return "";
   if (Array.isArray(val)) return val.join(" ").toLowerCase();
   if (typeof val === "string") {
-    // אם זה JSON string כמו '["Pain","Sleep"]' — parse אותו
     try {
       const parsed = JSON.parse(val);
       if (Array.isArray(parsed)) return parsed.join(" ").toLowerCase();
-    } catch {
-      // לא JSON — החזר כ-string רגיל
-    }
+    } catch {}
     return val.toLowerCase();
   }
   return JSON.stringify(val).toLowerCase();
 };
 
-// ─── Score ring ───────────────────────────────────────────────────────────────
-const ScoreRing = ({ score, rank }: { score: number; rank: number }) => {
-  const r = 22;
+const parseTerpenes = (strain: ScoredStrain): string[] => {
+  try {
+    if (strain.terpenes) {
+      const p = typeof strain.terpenes === "string"
+        ? JSON.parse(strain.terpenes)
+        : strain.terpenes;
+      if (Array.isArray(p)) return p;
+    }
+  } catch {}
+  if (strain.terpenes_profile) {
+    return strain.terpenes_profile.split(",").map((t) => t.trim()).filter(Boolean);
+  }
+  return [];
+};
+
+// ─── Terpene knowledge base ───────────────────────────────────────────────────
+const TERPENE_INFO: Record<string, { color: string; effect: string; icon: typeof Zap }> = {
+  myrcene:       { color: "bg-green-50 text-green-700 border-green-200",   effect: "Sedating · muscle relaxant · earthy aroma",     icon: Moon   },
+  linalool:      { color: "bg-purple-50 text-purple-700 border-purple-200",effect: "Calming · anti-anxiety · floral scent",          icon: Heart  },
+  limonene:      { color: "bg-yellow-50 text-yellow-700 border-yellow-200",effect: "Uplifting · mood-enhancing · citrus aroma",      icon: Zap    },
+  caryophyllene: { color: "bg-orange-50 text-orange-700 border-orange-200",effect: "Anti-inflammatory · pain relief · spicy aroma",  icon: FlaskConical },
+  pinene:        { color: "bg-teal-50 text-teal-700 border-teal-200",      effect: "Alertness · memory · pine scent",                icon: Brain  },
+  terpinolene:   { color: "bg-blue-50 text-blue-700 border-blue-200",      effect: "Mildly sedating · antioxidant · fresh aroma",   icon: Leaf   },
+  humulene:      { color: "bg-rose-50 text-rose-700 border-rose-200",      effect: "Appetite suppressant · anti-inflammatory",      icon: FlaskConical },
+};
+
+const getTerpeneInfo = (name: string) =>
+  TERPENE_INFO[name.toLowerCase()] ?? {
+    color: "bg-slate-50 text-slate-600 border-slate-200",
+    effect: "Terpene with various therapeutic properties",
+    icon: Leaf,
+  };
+
+// ─── Category style ───────────────────────────────────────────────────────────
+const CAT_STYLE: Record<string, { pill: string; bar: string }> = {
+  indica: { pill: "bg-purple-50 text-purple-700 border-purple-200", bar: "bg-purple-400" },
+  sativa: { pill: "bg-amber-50  text-amber-700  border-amber-200",  bar: "bg-amber-400"  },
+  hybrid: { pill: "bg-teal-50   text-teal-700   border-teal-200",   bar: "bg-teal-400"   },
+};
+
+// ─── Animated score ring ──────────────────────────────────────────────────────
+const ScoreRing = ({ score, rank, animate }: { score: number; rank: number; animate: boolean }) => {
+  const r    = 24;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (circ * score) / 100;
+  const offset = animate ? circ - (circ * score) / 100 : circ;
+
+  const rankColors = ["bg-amber-400 text-amber-900", "bg-slate-200 text-slate-600", "bg-orange-200 text-orange-700"];
+  const rankLabel  = ["#1", "#2", "#3"];
+
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative w-14 h-14">
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative w-16 h-16">
         <svg viewBox="0 0 56 56" className="w-full h-full -rotate-90">
-          <circle cx="28" cy="28" r={r} strokeWidth="5" fill="none" className="stroke-slate-200" />
+          <circle cx="28" cy="28" r={r} strokeWidth="4.5" fill="none" className="stroke-slate-100" />
           <circle
-            cx="28" cy="28" r={r} strokeWidth="5" fill="none"
-            strokeDasharray={circ} strokeDashoffset={offset}
-            strokeLinecap="round" className="stroke-emerald-700 transition-all duration-700"
+            cx="28" cy="28" r={r} strokeWidth="4.5" fill="none"
+            strokeDasharray={circ}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="stroke-emerald-600"
+            style={{ transition: animate ? "stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)" : "none" }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-800">
-          {score}%
-        </span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[13px] font-bold text-slate-800 leading-none">{score}%</span>
+          <span className="text-[9px] text-slate-400 tracking-wide mt-0.5">match</span>
+        </div>
       </div>
-      <span className="text-[10px] text-slate-400 tracking-wide">match</span>
-      <span className="text-[10px] font-medium text-slate-500 bg-white border border-slate-200 rounded px-1.5 py-0.5">
-        #{rank}
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rankColors[rank - 1] ?? "bg-slate-100 text-slate-500"}`}>
+        {rankLabel[rank - 1] ?? `#${rank}`}
       </span>
     </div>
   );
 };
 
-// ─── Strain card ──────────────────────────────────────────────────────────────
-const StrainCard = ({ strain, rank }: { strain: ScoredStrain; rank: number }) => {
-  const navigate = useNavigate();
-  const isTop = rank === 1;
+// ─── THC / CBD progress bar ───────────────────────────────────────────────────
+const LevelBar = ({
+  label, value, max = 30, barClass, textClass, animate, delay,
+}: {
+  label: string; value: number; max?: number;
+  barClass: string; textClass: string; animate: boolean; delay: number;
+}) => {
+  const pct = Math.min((value / max) * 100, 100);
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</span>
+        <span className={`text-[11px] font-bold ${textClass}`}>{value}%</span>
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${barClass}`}
+          style={{
+            width: animate ? `${pct}%` : "0%",
+            transition: animate ? `width 0.9s cubic-bezier(0.34,1.2,0.64,1) ${delay}ms` : "none",
+          }}
+        />
+      </div>
+    </div>
+  );
+};
 
-  // terpenes יכול להיות JSON string, array, או terpenes_profile כ-string פשוט
-  let terpeneList: string[] = [];
-  try {
-    if (strain.terpenes) {
-      const parsed = typeof strain.terpenes === "string"
-        ? JSON.parse(strain.terpenes)
-        : strain.terpenes;
-      terpeneList = Array.isArray(parsed) ? parsed : [];
-    } else if (strain.terpenes_profile) {
-      terpeneList = strain.terpenes_profile.split(",").map((t: string) => t.trim());
-    }
-  } catch {
-    terpeneList = strain.terpenes_profile
-      ? strain.terpenes_profile.split(",").map((t: string) => t.trim())
-      : [];
-  }
+// ─── Terpene tag with tooltip ─────────────────────────────────────────────────
+const TerpeneTag = ({ name }: { name: string }) => {
+  const [show, setShow] = useState(false);
+  const info = getTerpeneInfo(name);
+  const Icon = info.icon;
+  const ref  = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={`bg-white rounded-xl overflow-hidden ${
-      isTop ? "border border-emerald-300 shadow-sm" : "border border-slate-200"
-    }`}>
-      {isTop && (
-        <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-1.5 flex items-center gap-1.5">
-          <span className="text-emerald-600 text-xs">★</span>
-          <span className="text-[11px] font-medium text-emerald-800 tracking-wide">
-            Best therapeutic fit
-          </span>
+    <div className="relative" ref={ref}>
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-all hover:shadow-sm cursor-default ${info.color}`}
+      >
+        <Icon className="h-2.5 w-2.5" aria-hidden />
+        {name}
+      </button>
+
+      {/* Tooltip */}
+      {show && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 pointer-events-none">
+          <div className="bg-slate-900 text-white text-[11px] rounded-lg px-3 py-2 w-48 shadow-xl leading-relaxed whitespace-normal text-center">
+            <p className="font-semibold mb-0.5 capitalize">{name}</p>
+            <p className="text-slate-300 text-[10px]">{info.effect}</p>
+          </div>
+          {/* Arrow */}
+          <div className="w-0 h-0 mx-auto border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900" />
         </div>
       )}
-      <div className="flex">
-        <div className="w-24 flex-shrink-0 bg-slate-50 border-r border-slate-100 flex items-center justify-center py-5">
-          <ScoreRing score={strain.matchScore} rank={rank} />
-        </div>
-        <div className="flex-1 p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-base font-medium text-slate-900">{strain.name}</span>
-            {strain.category && (
-              <span className="text-[11px] text-slate-500 bg-slate-100 rounded px-2 py-0.5 whitespace-nowrap">
-                {strain.category}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <span className="text-[12px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
-              THC {strain.thc_level}%
+    </div>
+  );
+};
+
+// ─── Reason icon mapper ───────────────────────────────────────────────────────
+const reasonIcon = (reason: string) => {
+  if (reason.toLowerCase().includes("terpene")) return <FlaskConical className="h-3 w-3 text-purple-500 shrink-0 mt-0.5" />;
+  if (reason.toLowerCase().includes("cbd"))     return <Leaf className="h-3 w-3 text-teal-500 shrink-0 mt-0.5" />;
+  if (reason.toLowerCase().includes("indica") || reason.toLowerCase().includes("sleep")) return <Moon className="h-3 w-3 text-indigo-400 shrink-0 mt-0.5" />;
+  if (reason.toLowerCase().includes("sativa") || reason.toLowerCase().includes("mood"))  return <Zap className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />;
+  return <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />;
+};
+
+// ─── Animated strain card ─────────────────────────────────────────────────────
+const StrainCard = ({ strain, rank, revealDelay }: {
+  strain: ScoredStrain; rank: number; revealDelay: number;
+}) => {
+  const navigate  = useNavigate();
+  const [visible, setVisible] = useState(false);
+  const [animate, setAnimate] = useState(false);
+  const isTop     = rank === 1;
+  const cat       = strain.category?.toLowerCase() ?? "";
+  const catStyle  = CAT_STYLE[cat];
+  const terpenes  = parseTerpenes(strain);
+
+  // Staggered entrance animation
+  useEffect(() => {
+    const t1 = setTimeout(() => setVisible(true), revealDelay);
+    const t2 = setTimeout(() => setAnimate(true), revealDelay + 100);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [revealDelay]);
+
+  return (
+    <div
+      className={`transition-all duration-700 ${
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+      }`}
+    >
+      <div className={`bg-white rounded-2xl overflow-hidden border transition-shadow hover:shadow-md ${
+        isTop ? "border-emerald-300 shadow-sm" : "border-slate-200"
+      }`}>
+
+        {/* Top banner — #1 only */}
+        {isTop && (
+          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2 flex items-center gap-2">
+            <span className="text-white text-xs">★</span>
+            <span className="text-[11px] font-semibold text-white tracking-wide">
+              Best therapeutic fit
             </span>
-            <span className="text-[12px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2.5 py-0.5">
-              CBD {strain.cbd_level}%
+            <span className="ml-auto text-[10px] text-emerald-200 font-medium">
+              Top recommendation
             </span>
           </div>
-          {strain.reasons.length > 0 && (
-            <div className="bg-slate-50 border-l-2 border-emerald-300 rounded-r px-3 py-2">
-              <p className="text-[10px] font-medium text-emerald-700 tracking-wider mb-1 uppercase">
-                Clinical rationale
-              </p>
-              <p className="text-[13px] text-slate-600 leading-relaxed">
-                {strain.reasons.join(". ")}
-              </p>
-            </div>
-          )}
-          {terpeneList.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {terpeneList.map((t) => (
-                <span key={t} className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
-                  {t}
+        )}
+
+        {/* Category colour bar */}
+        {catStyle && (
+          <div className={`h-1 w-full ${catStyle.bar}`} />
+        )}
+
+        {/* Main body */}
+        <div className="flex">
+
+          {/* Left — score ring */}
+          <div className={`w-[88px] shrink-0 flex flex-col items-center justify-center py-5 gap-1 border-r ${
+            isTop ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-100"
+          }`}>
+            <ScoreRing score={strain.matchScore} rank={rank} animate={animate} />
+          </div>
+
+          {/* Right — content */}
+          <div className="flex-1 p-4 space-y-3 min-w-0">
+
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-semibold text-slate-900 leading-tight">
+                  {strain.name}
+                </h3>
+                {strain.producer && (
+                  <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-slate-300 inline-block" />
+                    {strain.producer}
+                  </p>
+                )}
+              </div>
+              {catStyle && strain.category && (
+                <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize whitespace-nowrap ${catStyle.pill}`}>
+                  {strain.category}
                 </span>
-              ))}
+              )}
             </div>
-          )}
-          <div className="pt-1">
-            <Button
-              size="sm"
-              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs h-8"
-              onClick={() => navigate("/feedback")}
-            >
-              Log usage
-            </Button>
+
+            {/* THC / CBD bars */}
+            <div className="bg-slate-50 rounded-xl px-3 py-2.5 space-y-2">
+              <LevelBar
+                label="THC" value={strain.thc_level ?? 0}
+                barClass="bg-gradient-to-r from-amber-400 to-amber-500"
+                textClass="text-amber-700"
+                animate={animate} delay={0}
+              />
+              <LevelBar
+                label="CBD" value={strain.cbd_level ?? 0}
+                max={20}
+                barClass="bg-gradient-to-r from-teal-400 to-teal-500"
+                textClass="text-teal-700"
+                animate={animate} delay={150}
+              />
+            </div>
+
+            {/* Clinical rationale */}
+            {strain.reasons.length > 0 && (
+              <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-3 py-2.5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mb-2">
+                  Clinical rationale
+                </p>
+                <ul className="space-y-1.5">
+                  {strain.reasons.map((r, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
+                      {reasonIcon(r)}
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Terpene tags with tooltips */}
+            {terpenes.length > 0 && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                  Terpene profile
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {terpenes.map((t) => (
+                    <TerpeneTag key={t} name={t} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs h-8 rounded-xl font-semibold"
+                onClick={() => navigate("/feedback")}
+              >
+                Log usage
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => navigate("/strains")}
+              >
+                View in catalog
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -161,25 +335,34 @@ const StrainCard = ({ strain, rank }: { strain: ScoredStrain; rank: number }) =>
 };
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
-const CardSkeleton = () => (
-  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden animate-pulse">
+const CardSkeleton = ({ delay }: { delay: number }) => (
+  <div
+    className="bg-white border border-slate-200 rounded-2xl overflow-hidden animate-pulse"
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    <div className="h-1 bg-slate-200 w-full" />
     <div className="flex">
-      <div className="w-24 bg-slate-100 flex items-center justify-center py-5">
-        <div className="w-14 h-14 rounded-full bg-slate-200" />
+      <div className="w-[88px] bg-slate-50 border-r border-slate-100 flex items-center justify-center py-5">
+        <div className="w-16 h-16 rounded-full bg-slate-200" />
       </div>
       <div className="flex-1 p-4 space-y-3">
-        <div className="h-4 bg-slate-200 rounded w-1/3" />
-        <div className="flex gap-2">
-          <div className="h-5 bg-slate-100 rounded-full w-16" />
-          <div className="h-5 bg-slate-100 rounded-full w-16" />
+        <div className="h-4 bg-slate-200 rounded w-2/5" />
+        <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+          <div className="h-1.5 bg-slate-200 rounded-full w-3/4" />
+          <div className="h-1.5 bg-slate-200 rounded-full w-1/2" />
         </div>
-        <div className="h-12 bg-slate-100 rounded" />
+        <div className="h-16 bg-slate-100 rounded-xl" />
+        <div className="flex gap-1">
+          <div className="h-5 bg-slate-100 rounded-full w-16" />
+          <div className="h-5 bg-slate-100 rounded-full w-20" />
+          <div className="h-5 bg-slate-100 rounded-full w-14" />
+        </div>
       </div>
     </div>
   </div>
 );
 
-// ─── Debug panel (dev only) ───────────────────────────────────────────────────
+// ─── Debug panel ──────────────────────────────────────────────────────────────
 const DebugPanel = ({ info }: { info: Record<string, unknown> }) => {
   if (import.meta.env.PROD) return null;
   return (
@@ -202,51 +385,33 @@ const RecommendationsPage = () => {
     const generate = async () => {
       setLoading(true);
       try {
-        // ── FIX BUG 1: מציאת patient_id אמיתי ───────────────────────────
-        // currentUser.id = "demo-id" — לא עובד עם .eq()
-        // הפתרון: נשתמש ב-patientProfile.patientId מה-context אם קיים,
-        // אחרת ניקח את הפרופיל הראשון מה-DB (demo mode)
         let resolvedPatientId: string | null = null;
         let profile: Record<string, unknown> | null = null;
 
-        // Option A: יש patientId ב-context (אחרי PatientInputPage)
         if (patientProfile?.patientId && patientProfile.patientId !== "manual") {
           resolvedPatientId = String(patientProfile.patientId);
           const { data } = await supabase
-            .from("patient_profiles")
-            .select("*")
-            .eq("patient_id", resolvedPatientId)
-            .maybeSingle();
+            .from("patient_profiles").select("*")
+            .eq("patient_id", resolvedPatientId).maybeSingle();
           profile = data;
         }
 
-        // Option B: currentUser.id הוא UUID אמיתי (לא demo-id)
         if (!profile && currentUser?.id && currentUser.id !== "demo-id") {
-          // מחפש דרך טבלת patients → patient_profiles
           const { data: patientRow } = await supabase
-            .from("patients")
-            .select("id")
-            .eq("user_id", currentUser.id)
-            .maybeSingle();
-
+            .from("patients").select("id")
+            .eq("user_id", currentUser.id).maybeSingle();
           if (patientRow?.id) {
             resolvedPatientId = patientRow.id;
             const { data } = await supabase
-              .from("patient_profiles")
-              .select("*")
-              .eq("patient_id", resolvedPatientId)
-              .maybeSingle();
+              .from("patient_profiles").select("*")
+              .eq("patient_id", resolvedPatientId).maybeSingle();
             profile = data;
           }
         }
 
-        // Option C: demo mode — קח את הפרופיל הראשון הזמין ב-DB
         if (!profile) {
           const { data } = await supabase
-            .from("patient_profiles")
-            .select("*")
-            .limit(1)
-            .maybeSingle();
+            .from("patient_profiles").select("*").limit(1).maybeSingle();
           profile = data;
           resolvedPatientId = profile?.patient_id as string ?? null;
         }
@@ -255,20 +420,11 @@ const RecommendationsPage = () => {
         const age        = (profile?.age as number) ?? 40;
         setConditionLabel((profile?.medical_conditions as string) || "");
 
-        // ── שליפת זנים ────────────────────────────────────────────────────
         const { data: allStrains } = await supabase.from("strains").select("*");
 
-        setDebugInfo({
-          resolvedPatientId,
-          conditions,
-          age,
-          strainsCount: allStrains?.length ?? 0,
-          profileFound: !!profile,
-        });
-
+        setDebugInfo({ resolvedPatientId, conditions, age, strainsCount: allStrains?.length ?? 0 });
         if (!allStrains || allStrains.length === 0) return;
 
-        // ── FIX BUG 2+3: אלגוריתם עמיד לנתוני null ───────────────────────
         const scored: ScoredStrain[] = allStrains.map((strain) => {
           let score = 0;
           const reasons: string[] = [];
@@ -277,20 +433,19 @@ const RecommendationsPage = () => {
           const terpenes = toSearchString(strain.terpenes) || toSearchString(strain.terpenes_profile);
           const cat      = (strain.category ?? "").toLowerCase();
 
-          // מיפוי מחלות → מילות מפתח ב-medical_uses
           const conditionMap: [string, string[]][] = [
-            ["pain",        ["pain"]],
-            ["chronic pain",["pain", "severe pain", "mild pain"]],
-            ["insomnia",    ["insomnia", "sleep"]],
-            ["anxiety",     ["anxiety", "stress"]],
-            ["inflammation",["inflammation"]],
-            ["depression",  ["depression", "mood"]],
-            ["nausea",      ["nausea"]],
-            ["ptsd",        ["ptsd", "stress", "anxiety"]],
-            ["epilepsy",    ["seizures", "epilepsy"]],
-            ["fibromyalgia",["pain", "inflammation"]],
-            ["fatigue",     ["fatigue", "focus"]],
-            ["appetite",    ["appetite loss"]],
+            ["pain",         ["pain"]],
+            ["chronic pain", ["pain", "severe pain", "mild pain"]],
+            ["insomnia",     ["insomnia", "sleep"]],
+            ["anxiety",      ["anxiety", "stress"]],
+            ["inflammation", ["inflammation"]],
+            ["depression",   ["depression", "mood"]],
+            ["nausea",       ["nausea"]],
+            ["ptsd",         ["ptsd", "stress", "anxiety"]],
+            ["epilepsy",     ["seizures", "epilepsy"]],
+            ["fibromyalgia", ["pain", "inflammation"]],
+            ["fatigue",      ["fatigue", "focus"]],
+            ["appetite",     ["appetite loss"]],
           ];
 
           for (const [userCond, keywords] of conditionMap) {
@@ -305,61 +460,45 @@ const RecommendationsPage = () => {
             }
           }
 
-          // קטגוריה
           if ((conditions.includes("pain") || conditions.includes("insomnia") || conditions.includes("ptsd")) && cat === "indica") {
-            score += 20;
-            reasons.push("Indica — supports relaxation & sleep");
+            score += 20; reasons.push("Indica — supports relaxation & sleep");
           }
           if ((conditions.includes("depression") || conditions.includes("fatigue")) && cat === "sativa") {
-            score += 20;
-            reasons.push("Sativa — supports mood & energy");
+            score += 20; reasons.push("Sativa — supports mood & energy");
           }
           if (conditions.includes("anxiety") && cat === "hybrid") {
-            score += 15;
-            reasons.push("Hybrid — balanced profile for anxiety");
+            score += 15; reasons.push("Hybrid — balanced profile for anxiety");
           }
 
-          // טרפנים
           const terpeneBonus: [string, string, string][] = [
-            ["pain",        "myrcene",       "Myrcene — analgesic terpene"],
-            ["anxiety",     "linalool",      "Linalool — anxiolytic terpene"],
-            ["insomnia",    "myrcene",       "Myrcene — sedative terpene"],
-            ["inflammation","caryophyllene", "Caryophyllene — anti-inflammatory"],
-            ["depression",  "limonene",      "Limonene — mood-elevating terpene"],
-            ["ptsd",        "pinene",        "Pinene — promotes alertness"],
+            ["pain",         "myrcene",       "Terpene: Myrcene — analgesic"],
+            ["anxiety",      "linalool",      "Terpene: Linalool — anxiolytic"],
+            ["insomnia",     "myrcene",       "Terpene: Myrcene — sedative"],
+            ["inflammation", "caryophyllene", "Terpene: Caryophyllene — anti-inflammatory"],
+            ["depression",   "limonene",      "Terpene: Limonene — mood-elevating"],
+            ["ptsd",         "pinene",        "Terpene: Pinene — promotes alertness"],
           ];
           for (const [cond, terp, label] of terpeneBonus) {
             if (conditions.includes(cond) && terpenes.includes(terp)) {
-              score += 15;
-              reasons.push(label);
+              score += 15; reasons.push(label);
             }
           }
 
-          // CBD גבוה לדלקת / חרדה
           if ((conditions.includes("inflammation") || conditions.includes("anxiety") || conditions.includes("epilepsy")) && strain.cbd_level > 5) {
-            score += 10;
-            reasons.push("High CBD — reduced psychoactive burden");
+            score += 10; reasons.push("High CBD — reduced psychoactive burden");
           }
 
-          // ניקוי ציון לגיל מבוגר
-          if (age > 60 && strain.thc_level > 20) {
-            score -= 15;
-          }
+          if (age > 60 && strain.thc_level > 20) score -= 15;
 
-          // אם אין התאמה ישירה ב-medical_uses, בדוק לפחות לפי קטגוריה+טרפנים
-          // זה מונע אפס המלצות לזנים ללא medical_uses מוגדר
           if (score === 0 && (terpenes || cat)) {
             if (conditions.includes("pain") && (terpenes.includes("myrcene") || cat === "indica")) {
-              score += 25;
-              reasons.push("Terpene/category profile aligns with pain relief");
+              score += 25; reasons.push("Terpene/category profile aligns with pain relief");
             }
             if (conditions.includes("anxiety") && (terpenes.includes("linalool") || cat === "hybrid")) {
-              score += 25;
-              reasons.push("Terpene/category profile aligns with anxiety relief");
+              score += 25; reasons.push("Terpene/category profile aligns with anxiety relief");
             }
             if (conditions.includes("insomnia") && cat === "indica") {
-              score += 25;
-              reasons.push("Indica category supports sleep");
+              score += 25; reasons.push("Indica category supports sleep");
             }
           }
 
@@ -387,57 +526,77 @@ const RecommendationsPage = () => {
   }, [currentUser, patientProfile]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="max-w-2xl mx-auto space-y-5 py-2">
 
       {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[11px] font-medium rounded-full px-3 py-1 mb-3">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block" />
-          Clinical engine
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[11px] font-semibold rounded-full px-3 py-1 mb-3 uppercase tracking-wide">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+          Clinical engine · AI-powered
         </div>
-        <h1 className="text-2xl font-semibold text-slate-900 mb-1.5">
+        <h1 className="text-2xl font-bold text-slate-900 mb-1.5 tracking-tight">
           Your personalized matches
         </h1>
-        <p className="text-sm text-slate-500 leading-relaxed">
-          {conditionLabel
-            ? <>Condition: <span className="bg-teal-50 text-teal-700 text-xs font-medium px-2 py-0.5 rounded mx-1">{conditionLabel}</span></>
-            : "Based on your medical profile"}
-        </p>
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          {conditionLabel ? (
+            <>
+              Optimized for:
+              <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                <Heart className="h-3 w-3" />
+                {conditionLabel}
+              </span>
+            </>
+          ) : (
+            "Based on your medical profile"
+          )}
+        </div>
       </div>
 
-      {/* Debug panel — hidden in production */}
       <DebugPanel info={debugInfo} />
 
-      {/* Cards / loading / empty */}
+      {/* Cards */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+        <div className="space-y-4">
+          {[0, 150, 300].map((d) => <CardSkeleton key={d} delay={d} />)}
         </div>
       ) : recommendations.length === 0 ? (
-        <Alert className="bg-blue-50 border-blue-200">
+        <Alert className="bg-blue-50 border-blue-200 rounded-2xl animate-in fade-in duration-500">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-700 text-sm">
             No match found for your current profile. Try updating your medical profile with conditions like "Chronic Pain", "Insomnia", or "Anxiety".
           </AlertDescription>
         </Alert>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {recommendations.map((strain, i) => (
-            <StrainCard key={strain.id} strain={strain} rank={i + 1} />
+            <StrainCard
+              key={strain.id}
+              strain={strain}
+              rank={i + 1}
+              revealDelay={i * 180}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Terpene legend hint */}
+      {!loading && recommendations.length > 0 && (
+        <div className="animate-in fade-in duration-700 delay-700">
+          <p className="text-[11px] text-slate-400 text-center">
+            💡 Hover over terpene tags to see their therapeutic effects
+          </p>
         </div>
       )}
 
       {/* Disclaimer */}
       {!loading && recommendations.length > 0 && (
-        <div className="flex gap-3 items-start bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+        <div className="flex gap-3 items-start bg-amber-50 border border-amber-200 rounded-2xl p-3.5 animate-in fade-in duration-700">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 leading-relaxed">
-            <strong className="font-medium">Medical disclaimer:</strong> These recommendations are generated by a rule-based clinical algorithm. Final treatment must be approved by your certified physician.
+            <strong className="font-semibold">Medical disclaimer:</strong> These recommendations are generated by a rule-based clinical algorithm. Final treatment must be approved by your certified physician.
           </p>
         </div>
       )}
-
     </div>
   );
 };
