@@ -6,11 +6,7 @@ import type {
   Feedback,
   Recommendation,
 } from "@/types/database";
-import {
-  sampleUsageRecords,
-  sampleFeedback,
-  sampleRecommendations,
-} from "@/data/mockData";
+
 
 // הגדרת טיפוס למשתמש המחובר (סימולציה)
 interface CurrentUser {
@@ -41,9 +37,9 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
   const [clinicalConstraints, setClinicalConstraints] = useState<ClinicalConstraints | null>(null);
-  const [usageRecords, setUsageRecords] = useState<UsageRecord[]>(sampleUsageRecords);
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(sampleFeedback);
-  const [recommendations, setRecommendations] = useState<Recommendation[]>(sampleRecommendations);
+  const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   
   // ה-State החדש של המשתמש המחובר
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
