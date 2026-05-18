@@ -10,6 +10,7 @@ import RecommendationsPage from "./pages/RecommendationsPage";
 import DashboardPage from "./pages/DashboardPage";
 import FeedbackPage from "./pages/FeedbackPage";
 import StrainsCatalogPage from "./pages/StrainsCatalogPage";
+import InfoCenterPage from "./pages/InfoCenterPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navbar";
@@ -33,13 +34,14 @@ const AppRoutes = () => {
       <Navbar />
       <main className="flex-1 container mx-auto p-4 md:p-8">
         <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/patient-input" element={<PatientInputPage />} />
+          <Route path="/"                element={<Index />} />
+          <Route path="/patient-input"   element={<PatientInputPage />} />
           <Route path="/recommendations" element={<RecommendationsPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/feedback" element={<FeedbackPage />} />
-          <Route path="/strains" element={<StrainsCatalogPage />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="/dashboard"       element={<DashboardPage />} />
+          <Route path="/feedback"        element={<FeedbackPage />} />
+          <Route path="/strains"         element={<StrainsCatalogPage />} />
+          <Route path="/info"            element={<InfoCenterPage />} />
+          <Route path="*"                element={<NotFound />} />
         </Routes>
       </main>
     </div>
