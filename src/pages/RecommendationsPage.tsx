@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   AlertCircle, Info, CheckCircle2, Leaf, FlaskConical,
   Zap, Moon, Heart, Brain, Star, TrendingUp,
-  Users, AlertTriangle,
+  Users, AlertTriangle, ClipboardList, X, Loader2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
@@ -26,7 +26,6 @@ const parseTerpenes = (strain: ScoredStrain): string[] => {
   return [];
 };
 
-// ─── Terpene knowledge ────────────────────────────────────────────────────────
 const TERPENE_INFO: Record<string, { color: string; effect: string; icon: typeof Zap }> = {
   myrcene:       { color: "bg-green-50 text-green-700 border-green-200",    effect: "Sedating · muscle relaxant · earthy",     icon: Moon        },
   linalool:      { color: "bg-purple-50 text-purple-700 border-purple-200", effect: "Calming · anti-anxiety · floral",          icon: Heart       },
@@ -43,6 +42,154 @@ const CAT_STYLE: Record<string, { pill: string; bar: string }> = {
   indica: { pill: "bg-purple-50 text-purple-700 border-purple-200", bar: "bg-purple-400" },
   sativa: { pill: "bg-amber-50  text-amber-700  border-amber-200",  bar: "bg-amber-400"  },
   hybrid: { pill: "bg-teal-50   text-teal-700   border-teal-200",   bar: "bg-teal-400"   },
+};
+
+const CONSUMPTION_METHODS = [
+  "Vaporizer", "Oil drops", "Capsules", "Smoking", "Edibles", "Topical",
+];
+
+// ─── Log Usage Modal ──────────────────────────────────────────────────────────
+const LogUsageModal = ({
+  strain,
+  patientId,
+  onClose,
+  onSaved,
+}: {
+  strain: ScoredStrain;
+  patientId: string;
+  onClose: () => void;
+  onSaved: (usageId: string) => void;
+}) => {
+  const [dosage, setDosage]   = useState("");
+  const [method, setMethod]   = useState("Vaporizer");
+  const [date, setDate]       = useState(new Date().toISOString().split("T")[0]);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
+
+  const handleSave = async () => {
+    if (!dosage.trim()) { setError("Please enter the dosage."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase
+        .from("usage_records")
+        .insert({
+          patient_id:         patientId,
+          strain_id:          strain.id,
+          dosage:             dosage.trim(),
+          consumption_method: method,
+          usage_date:         date,
+        })
+        .select("id")
+        .single();
+
+      if (err || !data) throw new Error(err?.message ?? "Insert failed");
+      onSaved(data.id);
+    } catch (e: any) {
+      setError(e.message ?? "Could not save. Try again.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    // Backdrop
+    <div
+      className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <ClipboardList className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-slate-900">Log usage</p>
+              <p className="text-[11px] text-slate-400">{strain.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5">
+              <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Date */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Date of use</label>
+            <input
+              type="date"
+              value={date}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-[13px] outline-none focus:ring-2 focus:ring-emerald-400/40 focus:bg-white"
+            />
+          </div>
+
+          {/* Dosage */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">
+              Dosage <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 0.2g, 3 drops, 1 capsule"
+              value={dosage}
+              onChange={(e) => setDosage(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-[13px] outline-none focus:ring-2 focus:ring-emerald-400/40 focus:bg-white"
+            />
+          </div>
+
+          {/* Method */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Consumption method</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {CONSUMPTION_METHODS.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  className={`py-2 px-2 rounded-xl text-[11px] font-medium border-2 transition-all ${
+                    method === m
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 flex gap-2.5">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-xl border border-slate-200 text-[13px] text-slate-500 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save session"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
@@ -72,7 +219,6 @@ const ScoreRing = ({ score, rank, animate }: { score: number; rank: number; anim
   );
 };
 
-// ─── Level bar ────────────────────────────────────────────────────────────────
 const LevelBar = ({ label, value, max = 30, barClass, textClass, animate, delay }: {
   label: string; value: number; max?: number; barClass: string;
   textClass: string; animate: boolean; delay: number;
@@ -90,23 +236,19 @@ const LevelBar = ({ label, value, max = 30, barClass, textClass, animate, delay 
   </div>
 );
 
-// ─── Feedback badge ───────────────────────────────────────────────────────────
 const FeedbackBadge = ({ strain }: { strain: ScoredStrain }) => {
   if (!strain.feedbackCount || strain.avgEffectiveness === null) {
     return (
       <div className="flex items-center gap-1.5 text-[11px] text-slate-400 py-1">
         <Users className="h-3 w-3" />
-        <span>No community data yet — be the first to log feedback</span>
+        <span>No community data yet</span>
       </div>
     );
   }
-  const avg     = strain.avgEffectiveness;
-  const seRate  = strain.sideEffectRate ?? 0;
-  const stars   = Math.round(avg);
-  const barPct  = Math.round((avg / 5) * 100);
+  const avg = strain.avgEffectiveness;
+  const stars = Math.round(avg);
+  const barColor = avg >= 4 ? "bg-emerald-500" : avg >= 3 ? "bg-amber-400" : "bg-red-400";
   const scoreColor = avg >= 4 ? "text-emerald-700" : avg >= 3 ? "text-amber-600" : "text-red-600";
-  const barColor   = avg >= 4 ? "bg-emerald-500"   : avg >= 3 ? "bg-amber-400"   : "bg-red-400";
-
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -122,20 +264,18 @@ const FeedbackBadge = ({ strain }: { strain: ScoredStrain }) => {
           <span className="text-[10px] text-slate-400">/5</span>
         </div>
       </div>
-
       <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${barPct}%` }} />
+        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${Math.round((avg / 5) * 100)}%` }} />
       </div>
-
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-slate-400 flex items-center gap-1">
           <Users className="h-2.5 w-2.5" />
-          {strain.feedbackCount} report{strain.feedbackCount !== 1 ? "s" : ""} · same condition group
+          {strain.feedbackCount} report{strain.feedbackCount !== 1 ? "s" : ""} · same condition
         </span>
-        {seRate > 0.3 && (
+        {(strain.sideEffectRate ?? 0) > 0.3 && (
           <span className="text-[10px] text-amber-600 flex items-center gap-1">
             <AlertTriangle className="h-2.5 w-2.5" />
-            {Math.round(seRate * 100)}% reported side effects
+            {Math.round((strain.sideEffectRate ?? 0) * 100)}% side effects
           </span>
         )}
       </div>
@@ -143,7 +283,6 @@ const FeedbackBadge = ({ strain }: { strain: ScoredStrain }) => {
   );
 };
 
-// ─── Terpene tag ──────────────────────────────────────────────────────────────
 const TerpeneTag = ({ name }: { name: string }) => {
   const [show, setShow] = useState(false);
   const info = getTerpeneInfo(name);
@@ -175,15 +314,21 @@ const reasonIcon = (r: string) => {
   if (s.includes("indica") || s.includes("sleep"))      return <Moon className="h-3 w-3 text-indigo-400 shrink-0 mt-0.5" />;
   if (s.includes("sativa") || s.includes("mood"))       return <Zap className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />;
   if (s.includes("effective") || s.includes("efficac")) return <Star className="h-3 w-3 text-amber-400 shrink-0 mt-0.5 fill-amber-400" />;
-  if (s.includes("side effect") || s.includes("low"))   return <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />;
   return <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />;
 };
 
 // ─── Strain card ──────────────────────────────────────────────────────────────
-const StrainCard = ({ strain, rank, revealDelay }: { strain: ScoredStrain; rank: number; revealDelay: number }) => {
+const StrainCard = ({
+  strain, rank, revealDelay, patientId,
+}: {
+  strain: ScoredStrain; rank: number; revealDelay: number; patientId: string;
+}) => {
   const navigate = useNavigate();
-  const [visible, setVisible] = useState(false);
-  const [animate, setAnimate] = useState(false);
+  const [visible, setVisible]       = useState(false);
+  const [animate, setAnimate]       = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [loggedUsageId, setLoggedUsageId] = useState<string | null>(null);
+
   const isTop    = rank === 1;
   const cat      = strain.category?.toLowerCase() ?? "";
   const catStyle = CAT_STYLE[cat];
@@ -195,82 +340,124 @@ const StrainCard = ({ strain, rank, revealDelay }: { strain: ScoredStrain; rank:
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [revealDelay]);
 
+  const handleLogSaved = (usageId: string) => {
+    setLoggedUsageId(usageId);
+    setShowLogModal(false);
+  };
+
   return (
-    <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-      <div className={`bg-white rounded-2xl overflow-hidden border hover:shadow-md transition-shadow ${isTop ? "border-emerald-300 shadow-sm" : "border-slate-200"}`}>
-        {isTop && (
-          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2 flex items-center gap-2">
-            <span className="text-white text-xs">★</span>
-            <span className="text-[11px] font-semibold text-white tracking-wide">Best therapeutic fit</span>
-            <span className="ml-auto text-[10px] text-emerald-200">Top recommendation</span>
-          </div>
-        )}
-        {catStyle && <div className={`h-1 w-full ${catStyle.bar}`} />}
+    <>
+      <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+        <div className={`bg-white rounded-2xl overflow-hidden border hover:shadow-md transition-shadow ${isTop ? "border-emerald-300 shadow-sm" : "border-slate-200"}`}>
+          {isTop && (
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2 flex items-center gap-2">
+              <span className="text-white text-xs">★</span>
+              <span className="text-[11px] font-semibold text-white tracking-wide">Best therapeutic fit</span>
+              <span className="ml-auto text-[10px] text-emerald-200">Top recommendation</span>
+            </div>
+          )}
+          {catStyle && <div className={`h-1 w-full ${catStyle.bar}`} />}
 
-        <div className="flex">
-          <div className={`w-[88px] shrink-0 flex flex-col items-center justify-center py-5 border-r ${isTop ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
-            <ScoreRing score={strain.matchScore} rank={rank} animate={animate} />
-          </div>
+          <div className="flex">
+            <div className={`w-[88px] shrink-0 flex flex-col items-center justify-center py-5 border-r ${isTop ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
+              <ScoreRing score={strain.matchScore} rank={rank} animate={animate} />
+            </div>
 
-          <div className="flex-1 p-4 space-y-3 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-[15px] font-semibold text-slate-900 leading-tight">{strain.name}</h3>
-                {strain.producer && (
-                  <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-slate-300 inline-block" />{strain.producer}
-                  </p>
+            <div className="flex-1 p-4 space-y-3 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold text-slate-900 leading-tight">{strain.name}</h3>
+                  {strain.producer && (
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      <span className="w-1 h-1 rounded-full bg-slate-300 inline-block" />{strain.producer}
+                    </p>
+                  )}
+                </div>
+                {catStyle && strain.category && (
+                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize whitespace-nowrap ${catStyle.pill}`}>
+                    {strain.category}
+                  </span>
                 )}
               </div>
-              {catStyle && strain.category && (
-                <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize whitespace-nowrap ${catStyle.pill}`}>
-                  {strain.category}
-                </span>
-              )}
-            </div>
 
-            <div className="bg-slate-50 rounded-xl px-3 py-2.5 space-y-2">
-              <LevelBar label="THC" value={strain.thc_level ?? 0} barClass="bg-gradient-to-r from-amber-400 to-amber-500" textClass="text-amber-700" animate={animate} delay={0} />
-              <LevelBar label="CBD" value={strain.cbd_level ?? 0} max={20} barClass="bg-gradient-to-r from-teal-400 to-teal-500" textClass="text-teal-700" animate={animate} delay={150} />
-            </div>
-
-            {/* ── REAL FEEDBACK BADGE ─────────────────────────────────── */}
-            <FeedbackBadge strain={strain} />
-
-            {strain.reasons.length > 0 && (
-              <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mb-2">Clinical rationale</p>
-                <ul className="space-y-1.5">
-                  {strain.reasons.map((r, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
-                      {reasonIcon(r)}<span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5 space-y-2">
+                <LevelBar label="THC" value={strain.thc_level ?? 0} barClass="bg-gradient-to-r from-amber-400 to-amber-500" textClass="text-amber-700" animate={animate} delay={0} />
+                <LevelBar label="CBD" value={strain.cbd_level ?? 0} max={20} barClass="bg-gradient-to-r from-teal-400 to-teal-500" textClass="text-teal-700" animate={animate} delay={150} />
               </div>
-            )}
 
-            {terpenes.length > 0 && (
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Terpene profile</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {terpenes.map((t) => <TerpeneTag key={t} name={t} />)}
+              <FeedbackBadge strain={strain} />
+
+              {strain.reasons.length > 0 && (
+                <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-3 py-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mb-2">Clinical rationale</p>
+                  <ul className="space-y-1.5">
+                    {strain.reasons.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
+                        {reasonIcon(r)}<span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="flex gap-2 pt-1">
-              <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs h-8 rounded-xl font-semibold" onClick={() => navigate("/feedback")}>
-                Log usage
-              </Button>
-              <Button size="sm" variant="outline" className="text-xs h-8 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() => navigate("/strains")}>
-                View in catalog
-              </Button>
+              {terpenes.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Terpene profile</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {terpenes.map((t) => <TerpeneTag key={t} name={t} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                {loggedUsageId ? (
+                  // Already logged — show "Rate this session" button
+                  <button
+                    onClick={() => navigate("/feedback")}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                    Rate this session
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowLogModal(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Log usage
+                  </button>
+                )}
+                <Button size="sm" variant="outline"
+                  className="text-xs h-8 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50"
+                  onClick={() => navigate("/strains")}>
+                  Catalog
+                </Button>
+              </div>
+
+              {/* Saved confirmation */}
+              {loggedUsageId && (
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 animate-in fade-in duration-300">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Session logged — go to Feedback to rate it
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Log Usage Modal */}
+      {showLogModal && patientId && (
+        <LogUsageModal
+          strain={strain}
+          patientId={patientId}
+          onClose={() => setShowLogModal(false)}
+          onSaved={handleLogSaved}
+        />
+      )}
+    </>
   );
 };
 
@@ -305,26 +492,27 @@ const DebugPanel = ({ info }: { info: Record<string, unknown> }) => {
   );
 };
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
 const RecommendationsPage = () => {
   const { currentUser, patientProfile } = useAppState();
   const [loading, setLoading]                   = useState(true);
   const [recommendations, setRecommendations]   = useState<ScoredStrain[]>([]);
   const [conditionLabel, setConditionLabel]     = useState("");
   const [feedbackCoverage, setFeedbackCoverage] = useState(0);
+  const [resolvedPatientId, setResolvedPatientId] = useState("");
   const [debugInfo, setDebugInfo]               = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     const generate = async () => {
       setLoading(true);
       try {
-        let resolvedPatientId: string | null = null;
+        let pid: string | null = null;
         let profile: Record<string, unknown> | null = null;
 
         if (patientProfile?.patientId && patientProfile.patientId !== "manual") {
-          resolvedPatientId = String(patientProfile.patientId);
+          pid = String(patientProfile.patientId);
           const { data } = await supabase.from("patient_profiles").select("*")
-            .eq("patient_id", resolvedPatientId).maybeSingle();
+            .eq("patient_id", pid).maybeSingle();
           profile = data;
         }
 
@@ -332,9 +520,9 @@ const RecommendationsPage = () => {
           const { data: patientRow } = await supabase.from("patients").select("id")
             .eq("user_id", currentUser.id).maybeSingle();
           if (patientRow?.id) {
-            resolvedPatientId = patientRow.id;
+            pid = patientRow.id;
             const { data } = await supabase.from("patient_profiles").select("*")
-              .eq("patient_id", resolvedPatientId).maybeSingle();
+              .eq("patient_id", pid).maybeSingle();
             profile = data;
           }
         }
@@ -342,20 +530,20 @@ const RecommendationsPage = () => {
         if (!profile) {
           const { data } = await supabase.from("patient_profiles").select("*").limit(1).maybeSingle();
           profile = data;
-          resolvedPatientId = profile?.patient_id as string ?? null;
+          pid = profile?.patient_id as string ?? null;
         }
+
+        if (pid) setResolvedPatientId(pid);
 
         const conditions = (profile?.medical_conditions as string ?? "").toLowerCase();
         const age        = (profile?.age as number) ?? 40;
         setConditionLabel((profile?.medical_conditions as string) || "");
 
-        // Fetch strains + constraints + feedback index + condition index in parallel
         const [{ data: allStrains }, { data: constraintsRow }, feedbackIndex, conditionIndex] = await Promise.all([
           supabase.from("strains").select("*"),
-          resolvedPatientId
-            ? supabase.from("clinical_constraints").select("thc_max, cbd_min")
-                .eq("patient_id", resolvedPatientId).maybeSingle()
-            : Promise.resolve({ data: null }),
+          pid ? supabase.from("clinical_constraints").select("thc_max, cbd_min")
+                  .eq("patient_id", pid).maybeSingle()
+              : Promise.resolve({ data: null }),
           fetchFeedbackIndex(conditions),
           fetchConditionIndex(),
         ]);
@@ -363,15 +551,9 @@ const RecommendationsPage = () => {
         const thcMax: number | null = (constraintsRow as any)?.thc_max ?? null;
         const cbdMin: number | null = (constraintsRow as any)?.cbd_min ?? null;
 
-        setDebugInfo({
-          resolvedPatientId, conditions, age, thcMax, cbdMin,
-          strainsCount: allStrains?.length ?? 0,
-          feedbackIndexSize: feedbackIndex.size,
-          conditionIndexSize: conditionIndex.size,
-          usingConditionTable: conditionIndex.size > 0,
-        });
+        setDebugInfo({ pid, conditions, age, thcMax, cbdMin, strainsCount: allStrains?.length ?? 0, feedbackIndexSize: feedbackIndex.size });
 
-        if (!allStrains || allStrains.length === 0) return;
+        if (!allStrains?.length) return;
 
         const pool = allStrains.filter((s) => {
           if (thcMax !== null && s.thc_level > thcMax) return false;
@@ -379,15 +561,8 @@ const RecommendationsPage = () => {
           return true;
         });
 
-        const scored = scoreStrains(
-          pool.length > 0 ? pool : allStrains,
-          conditions, age, thcMax, cbdMin, feedbackIndex, conditionIndex
-        );
-
-        const top3 = scored
-          .filter((s) => s.matchScore > 0)
-          .sort((a, b) => b.matchScore - a.matchScore)
-          .slice(0, 3);
+        const scored = scoreStrains(pool.length > 0 ? pool : allStrains, conditions, age, thcMax, cbdMin, feedbackIndex, conditionIndex);
+        const top3   = scored.filter((s) => s.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
 
         setFeedbackCoverage(top3.filter((s) => s.feedbackCount > 0).length);
         setRecommendations(top3);
@@ -397,7 +572,6 @@ const RecommendationsPage = () => {
         setLoading(false);
       }
     };
-
     generate();
   }, [currentUser, patientProfile]);
 
@@ -440,7 +614,13 @@ const RecommendationsPage = () => {
       ) : (
         <div className="space-y-4">
           {recommendations.map((strain, i) => (
-            <StrainCard key={strain.id} strain={strain} rank={i + 1} revealDelay={i * 180} />
+            <StrainCard
+              key={strain.id}
+              strain={strain}
+              rank={i + 1}
+              revealDelay={i * 180}
+              patientId={resolvedPatientId}
+            />
           ))}
         </div>
       )}
@@ -448,12 +628,12 @@ const RecommendationsPage = () => {
       {!loading && recommendations.length > 0 && (
         <>
           <p className="text-[11px] text-slate-400 text-center animate-in fade-in duration-700">
-            💡 Hover terpene tags for effects · Scores include real patient feedback data
+            💡 Log a usage session after using a strain, then rate it in Feedback
           </p>
           <div className="flex gap-3 items-start bg-amber-50 border border-amber-200 rounded-2xl p-3.5 animate-in fade-in duration-700">
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-800 leading-relaxed">
-              <strong className="font-semibold">Medical disclaimer:</strong> Recommendations are generated by a rule-based clinical algorithm enhanced with anonymised community feedback. Final treatment decisions require physician approval.
+              <strong className="font-semibold">Medical disclaimer:</strong> Recommendations are generated by a clinical algorithm enhanced with anonymised community feedback. Final treatment decisions require physician approval.
             </p>
           </div>
         </>
