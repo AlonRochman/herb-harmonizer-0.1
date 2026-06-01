@@ -1,0 +1,238 @@
+// PharmacyLocator.tsx — shown after a recommendation is made
+// Usage: <PharmacyLocator strainName="Midnight" category="T20/C4" />
+
+import { useState } from "react";
+import { MapPin, ExternalLink, Phone, Clock, Star, ChevronDown, Navigation } from "lucide-react";
+
+interface Pharmacy {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  hours: string;
+  rating: number;
+  reviews: number;
+  distance: string;
+  hasStrain: boolean;
+  googleMapsUrl: string;
+  categories: string[];
+}
+
+// ─── Static pharmacy database (Israel) ────────────────────────────────────────
+// In production: replace with live inventory API (CANNABIZ or pharmacy chain)
+const PHARMACIES: Pharmacy[] = [
+  {
+    id: "1",
+    name: "Super-Pharm Cannabis — Tel Aviv",
+    address: "Dizengoff Center, 50 Dizengoff St",
+    city: "Tel Aviv",
+    phone: "03-621-0000",
+    hours: "Sun–Thu 9:00–21:00 · Fri 9:00–14:00",
+    rating: 4.6,
+    reviews: 234,
+    distance: "1.2 km",
+    hasStrain: true,
+    googleMapsUrl: "https://maps.google.com/?q=Dizengoff+Center+Tel+Aviv",
+    categories: ["T20/C4", "T22/C4", "T10/C10"],
+  },
+  {
+    id: "2",
+    name: "Pharma Kol — Ramat Gan",
+    address: "Bialik 4, Ramat Gan",
+    city: "Ramat Gan",
+    phone: "03-677-1234",
+    hours: "Sun–Thu 8:30–20:00 · Fri 8:30–13:00",
+    rating: 4.8,
+    reviews: 89,
+    distance: "3.4 km",
+    hasStrain: true,
+    googleMapsUrl: "https://maps.google.com/?q=Bialik+4+Ramat+Gan",
+    categories: ["T20/C4", "T10/C10", "T1/CBD"],
+  },
+  {
+    id: "3",
+    name: "New Pharm — Jerusalem",
+    address: "Jaffa 97, Jerusalem",
+    city: "Jerusalem",
+    phone: "02-538-8888",
+    hours: "Sun–Thu 9:00–20:30 · Fri 9:00–13:30",
+    rating: 4.3,
+    reviews: 156,
+    distance: "5.1 km",
+    hasStrain: false,
+    googleMapsUrl: "https://maps.google.com/?q=Jaffa+97+Jerusalem",
+    categories: ["T22/C4", "T20/C4"],
+  },
+  {
+    id: "4",
+    name: "Farmacia Plus — Haifa",
+    address: "HaNamal 12, Haifa",
+    city: "Haifa",
+    phone: "04-855-2200",
+    hours: "Sun–Thu 9:00–20:00 · Fri 9:00–14:00",
+    rating: 4.5,
+    reviews: 67,
+    distance: "7.8 km",
+    hasStrain: true,
+    googleMapsUrl: "https://maps.google.com/?q=HaNamal+12+Haifa",
+    categories: ["T20/C4", "T10/C10", "T22/C4", "T1/CBD"],
+  },
+  {
+    id: "5",
+    name: "MedPharm — Petah Tikva",
+    address: "Ben Gurion 45, Petah Tikva",
+    city: "Petah Tikva",
+    phone: "03-924-5500",
+    hours: "Sun–Thu 8:00–21:00 · Fri 8:00–14:00",
+    rating: 4.2,
+    reviews: 112,
+    distance: "9.3 km",
+    hasStrain: false,
+    googleMapsUrl: "https://maps.google.com/?q=Ben+Gurion+45+Petah+Tikva",
+    categories: ["T20/C4"],
+  },
+];
+
+// ─── Main component ───────────────────────────────────────────────────────────
+interface Props {
+  strainName: string;
+  category?: string; // T/C category from license
+}
+
+export const PharmacyLocator = ({ strainName, category }: Props) => {
+  const [showAll,   setShowAll]   = useState(false);
+  const [filterAvail, setFilterAvail] = useState(false);
+
+  const filtered = PHARMACIES
+    .filter((p) => !filterAvail || p.hasStrain)
+    .slice(0, showAll ? undefined : 3);
+
+  return (
+    <div className="space-y-3">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-emerald-600" />
+          <span className="text-[13px] font-semibold text-slate-700">Where to buy</span>
+        </div>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filterAvail}
+            onChange={(e) => setFilterAvail(e.target.checked)}
+            className="w-3.5 h-3.5 accent-emerald-600"
+          />
+          <span className="text-[11px] text-slate-500">In stock only</span>
+        </label>
+      </div>
+
+      {/* Google Maps embed — static for demo */}
+      <div className="rounded-xl overflow-hidden border border-slate-200 h-36 bg-slate-100 relative">
+        <iframe
+          title="Pharmacy map"
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          src="https://maps.google.com/maps?q=medical+cannabis+pharmacy+israel&output=embed&z=10"
+        />
+        <div className="absolute top-2 right-2">
+          <a
+            href={`https://maps.google.com/?q=medical+cannabis+pharmacy+israel`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 shadow-sm"
+          >
+            <Navigation className="h-3 w-3" /> Open in Maps
+          </a>
+        </div>
+      </div>
+
+      {/* Pharmacy cards */}
+      <div className="space-y-2">
+        {filtered.map((p) => (
+          <div
+            key={p.id}
+            className={`bg-white border rounded-xl p-3.5 transition-all ${
+              p.hasStrain ? "border-emerald-200" : "border-slate-200 opacity-80"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[13px] font-semibold text-slate-900 leading-tight">{p.name}</p>
+                  {p.hasStrain && (
+                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      ✓ In stock
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  {p.address}, {p.city} · {p.distance}
+                </p>
+              </div>
+              <a
+                href={p.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+              </a>
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3 shrink-0" />{p.hours}
+              </span>
+              <span className="flex items-center gap-1">
+                <Phone className="h-3 w-3 shrink-0" />{p.phone}
+              </span>
+              <span className="flex items-center gap-1">
+                <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                {p.rating} ({p.reviews})
+              </span>
+            </div>
+
+            {/* Available categories */}
+            <div className="flex flex-wrap gap-1 mt-2">
+              {p.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
+                    cat === category
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Show more */}
+      {!showAll && PHARMACIES.length > 3 && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="w-full flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 text-slate-500 text-[12px] hover:bg-slate-50 transition-colors"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+          Show {PHARMACIES.length - 3} more pharmacies
+        </button>
+      )}
+
+      <p className="text-[10px] text-slate-400 text-center">
+        Pharmacy data is for demo purposes. Real-time inventory requires integration with pharmacy systems.
+      </p>
+    </div>
+  );
+};
+
+export default PharmacyLocator;
