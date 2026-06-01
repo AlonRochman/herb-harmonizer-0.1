@@ -1,0 +1,276 @@
+// StrainReviews.tsx — drop into StrainsCatalogPage strain detail or modal
+// Usage: <StrainReviews strainId={strain.id} strainName={strain.name} patientId={patientId} />
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { Star, MessageSquare, Loader2, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
+
+interface Review {
+  effectiveness_score: number;
+  side_effects: string;
+  comments: string;
+  usage_date: string;
+}
+
+// ─── Star display ─────────────────────────────────────────────────────────────
+const Stars = ({ score, size = "sm" }: { score: number; size?: "sm" | "md" }) => {
+  const cls = size === "sm" ? "h-3 w-3" : "h-4 w-4";
+  return (
+    <div className="flex gap-0.5">
+      {[1,2,3,4,5].map((i) => (
+        <Star key={i} className={`${cls} ${i <= score ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
+      ))}
+    </div>
+  );
+};
+
+// ─── Interactive star picker ──────────────────────────────────────────────────
+const StarPicker = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
+  <div className="flex gap-1">
+    {[1,2,3,4,5].map((n) => (
+      <button key={n} type="button" onClick={() => onChange(n)}
+        className="transition-transform hover:scale-110">
+        <Star className={`h-6 w-6 transition-colors ${n <= value ? "text-amber-400 fill-amber-400" : "text-slate-300 fill-slate-100 hover:text-amber-300"}`} />
+      </button>
+    ))}
+  </div>
+);
+
+const SIDE_EFFECTS_OPTS = ["None","Dry mouth","Dizziness","Fatigue","Nausea","Anxiety","Sleepiness","Headache"];
+
+// ─── Main component ───────────────────────────────────────────────────────────
+interface Props {
+  strainId: string;
+  strainName: string;
+  patientId?: string | null;
+}
+
+export const StrainReviews = ({ strainId, strainName, patientId }: Props) => {
+  const [reviews,    setReviews]    = useState<Review[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showForm,   setShowForm]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [done,       setDone]       = useState(false);
+  const [error,      setError]      = useState("");
+
+  const [score,      setScore]      = useState(0);
+  const [sideEffect, setSideEffect] = useState("None");
+  const [comment,    setComment]    = useState("");
+
+  // ── Load reviews ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("feedback")
+        .select("effectiveness_score, side_effects, comments, usage_records!inner(usage_date, strain_id)")
+        .eq("usage_records.strain_id", strainId);
+
+      const rows: Review[] = (data ?? []).map((r: any) => ({
+        effectiveness_score: r.effectiveness_score,
+        side_effects:        r.side_effects,
+        comments:            r.comments,
+        usage_date:          r.usage_records?.usage_date ?? "",
+      }));
+      setReviews(rows);
+      setLoading(false);
+    };
+    load();
+  }, [strainId, done]);
+
+  const avgScore = reviews.length
+    ? reviews.reduce((s, r) => s + r.effectiveness_score, 0) / reviews.length
+    : null;
+
+  // ── Submit review ─────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (score === 0) { setError("Please select a score."); return; }
+    if (!patientId)  { setError("Log in as a patient to submit a review."); return; }
+
+    setSubmitting(true); setError("");
+    try {
+      // Must have a usage_record for this strain
+      const { data: usageRow } = await supabase
+        .from("usage_records")
+        .select("id")
+        .eq("patient_id", patientId)
+        .eq("strain_id",  strainId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!usageRow) {
+        setError("You need to log a usage session for this strain before reviewing it.");
+        setSubmitting(false);
+        return;
+      }
+
+      const { error: err } = await supabase.from("feedback").insert({
+        usage_id:            usageRow.id,
+        effectiveness_score: score,
+        side_effects:        sideEffect,
+        comments:            comment,
+      });
+      if (err) throw err;
+
+      setDone(true);
+      setShowForm(false);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to submit.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-[12px] text-slate-400 py-4">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading reviews…
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* Summary bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-slate-400" />
+          <span className="text-[12px] font-semibold text-slate-600">
+            Community reviews
+          </span>
+          {reviews.length > 0 && (
+            <span className="text-[11px] text-slate-400">({reviews.length})</span>
+          )}
+        </div>
+        {avgScore !== null && (
+          <div className="flex items-center gap-1.5">
+            <Stars score={Math.round(avgScore)} />
+            <span className="text-[12px] font-bold text-slate-700">{avgScore.toFixed(1)}/5</span>
+          </div>
+        )}
+      </div>
+
+      {/* Distribution bar */}
+      {reviews.length > 0 && (
+        <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+          {[5,4,3,2,1].map((n) => {
+            const count = reviews.filter((r) => r.effectiveness_score === n).length;
+            const pct   = (count / reviews.length) * 100;
+            return (
+              <div key={n} className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400 w-3 text-right">{n}</span>
+                <Star className="h-2.5 w-2.5 text-amber-400 fill-amber-400 shrink-0" />
+                <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 w-4">{count}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Review list */}
+      {reviews.length === 0 && !done && (
+        <div className="flex flex-col items-center py-6 text-slate-400 gap-1.5">
+          <MessageSquare className="h-6 w-6 opacity-30" />
+          <p className="text-[12px]">No reviews yet for {strainName}.</p>
+        </div>
+      )}
+
+      {reviews.slice(0, 5).map((r, i) => {
+        const hasSE = r.side_effects && r.side_effects.toLowerCase() !== "none";
+        return (
+          <div key={i} className="border border-slate-100 rounded-xl p-3 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Stars score={r.effectiveness_score} />
+              <span className="text-[10px] text-slate-400">
+                {r.usage_date ? new Date(r.usage_date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : ""}
+              </span>
+            </div>
+            {hasSE && (
+              <p className="text-[11px] text-rose-600 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" /> {r.side_effects}
+              </p>
+            )}
+            {r.comments && (
+              <p className="text-[12px] text-slate-600 leading-relaxed">"{r.comments}"</p>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Write review */}
+      {!done && !showForm && patientId && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="w-full flex items-center justify-center gap-2 h-9 rounded-xl border border-emerald-200 text-emerald-700 text-[12px] font-semibold hover:bg-emerald-50 transition-colors"
+        >
+          <Star className="h-3.5 w-3.5" /> Write a review
+        </button>
+      )}
+
+      {done && (
+        <div className="flex items-center gap-2 text-[12px] text-emerald-600 py-2">
+          <CheckCircle2 className="h-4 w-4" /> Review submitted — thank you!
+        </div>
+      )}
+
+      {/* Review form */}
+      {showForm && (
+        <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
+          <p className="text-[12px] font-semibold text-slate-700">Your experience with {strainName}</p>
+
+          {error && (
+            <div className="flex items-center gap-1.5 text-[11px] text-red-600">
+              <AlertCircle className="h-3 w-3" />{error}
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <p className="text-[11px] text-slate-500">Effectiveness <span className="text-red-400">*</span></p>
+            <StarPicker value={score} onChange={setScore} />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-[11px] text-slate-500">Side effects</p>
+            <div className="flex flex-wrap gap-1.5">
+              {SIDE_EFFECTS_OPTS.map((se) => (
+                <button key={se} onClick={() => setSideEffect(se)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                    sideEffect === se
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}>{se}</button>
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Share your experience… (optional)"
+            rows={2}
+            className="w-full text-[12px] bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-400/40 resize-none"
+          />
+
+          <div className="flex gap-2">
+            <button onClick={() => { setShowForm(false); setError(""); }}
+              className="px-4 h-9 rounded-xl border border-slate-200 text-slate-500 text-[12px] hover:bg-slate-50">
+              Cancel
+            </button>
+            <button onClick={handleSubmit} disabled={submitting}
+              className="flex-1 h-9 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
+              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {submitting ? "Saving…" : "Submit review"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default StrainReviews;
