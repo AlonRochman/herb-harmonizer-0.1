@@ -1,0 +1,233 @@
+// NotificationsSystem.tsx
+// Smart alert badge + dropdown for patient Dashboard
+// Usage: <NotificationBell patientId={patientId} />
+
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
+import { Bell, CheckCircle2, Star, Leaf, AlertCircle, X } from "lucide-react";
+
+interface Notification {
+  id: string;
+  type: "approval" | "feedback_due" | "new_strain" | "reminder";
+  title: string;
+  body: string;
+  action?: { label: string; path: string };
+  read: boolean;
+  ts: string;
+}
+
+const ICONS = {
+  approval:     { icon: CheckCircle2, bg: "bg-emerald-50", color: "text-emerald-600" },
+  feedback_due: { icon: Star,         bg: "bg-amber-50",   color: "text-amber-600"   },
+  new_strain:   { icon: Leaf,         bg: "bg-teal-50",    color: "text-teal-600"    },
+  reminder:     { icon: AlertCircle,  bg: "bg-blue-50",    color: "text-blue-600"    },
+};
+
+interface Props {
+  patientId: string | null;
+}
+
+export const NotificationBell = ({ patientId }: Props) => {
+  const navigate = useNavigate();
+  const [open,   setOpen]   = useState(false);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Generate smart notifications from DB state
+  useEffect(() => {
+    if (!patientId) return;
+    const load = async () => {
+      const generated: Notification[] = [];
+
+      // 1. Pending recommendations (approved ones)
+      const { data: recs } = await supabase
+        .from("recommendations")
+        .select("id, status, strains(name), recommendation_date")
+        .eq("patient_id", patientId)
+        .eq("status", "approved")
+        .order("recommendation_date", { ascending: false })
+        .limit(3);
+
+      (recs ?? []).forEach((rec: any) => {
+        generated.push({
+          id:     `rec_${rec.id}`,
+          type:   "approval",
+          title:  "Recommendation approved ✓",
+          body:   `Dr. approved ${rec.strains?.name ?? "your recommendation"}. Ready to use!`,
+          action: { label: "View recommendations", path: "/recommendations" },
+          read:   false,
+          ts:     rec.recommendation_date,
+        });
+      });
+
+      // 2. Usage records without feedback
+      const { data: usage } = await supabase
+        .from("usage_records")
+        .select("id, usage_date, strains(name), feedback(id)")
+        .eq("patient_id", patientId)
+        .order("usage_date", { ascending: false })
+        .limit(5);
+
+      (usage ?? []).forEach((u: any) => {
+        const hasFb = Array.isArray(u.feedback) ? u.feedback.length > 0 : !!u.feedback;
+        if (!hasFb) {
+          const daysAgo = Math.floor((Date.now() - new Date(u.usage_date).getTime()) / 86400000);
+          if (daysAgo >= 1 && daysAgo <= 14) {
+            generated.push({
+              id:     `fb_${u.id}`,
+              type:   "feedback_due",
+              title:  "Feedback pending",
+              body:   `How was your session with ${u.strains?.name ?? "the strain"}? Rate it to improve your recommendations.`,
+              action: { label: "Submit feedback", path: "/feedback" },
+              read:   false,
+              ts:     u.usage_date,
+            });
+          }
+        }
+      });
+
+      // 3. Reminder: no usage logged in 30+ days
+      const lastUsage = usage?.[0];
+      if (lastUsage) {
+        const daysAgo = Math.floor((Date.now() - new Date(lastUsage.usage_date).getTime()) / 86400000);
+        if (daysAgo >= 30) {
+          generated.push({
+            id:   "reminder_usage",
+            type: "reminder",
+            title: "30 days since last session",
+            body:  "It's been a while. Log a new usage session to keep your treatment history up to date.",
+            action: { label: "Log usage", path: "/recommendations" },
+            read:  false,
+            ts:    new Date().toISOString(),
+          });
+        }
+      }
+
+      // 4. New strain hint (static demo)
+      const { data: newStrains } = await supabase
+        .from("strains")
+        .select("name")
+        .limit(1)
+        .maybeSingle();
+
+      if (newStrains && generated.length < 4) {
+        generated.push({
+          id:   "new_strain_demo",
+          type: "new_strain",
+          title: "New strain available",
+          body:  `${newStrains.name} matching your profile has been added to the catalog.`,
+          action: { label: "View strains", path: "/strains" },
+          read:  false,
+          ts:    new Date().toISOString(),
+        });
+      }
+
+      setNotifs(generated.slice(0, 5));
+    };
+    load();
+  }, [patientId]);
+
+  const unread = notifs.filter((n) => !n.read).length;
+
+  const markRead = (id: string) =>
+    setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+
+  const markAllRead = () => setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+
+  const handleAction = (notif: Notification) => {
+    markRead(notif.id);
+    if (notif.action) navigate(notif.action.path);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      {/* Bell button */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors"
+        aria-label="Notifications"
+      >
+        <Bell className="h-5 w-5 text-slate-500" />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute right-0 top-11 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <span className="text-[13px] font-semibold text-slate-800">Notifications</span>
+            <div className="flex items-center gap-2">
+              {unread > 0 && (
+                <button onClick={markAllRead} className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+                  Mark all read
+                </button>
+              )}
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* List */}
+          {notifs.length === 0 ? (
+            <div className="flex flex-col items-center py-10 text-slate-400 gap-2">
+              <Bell className="h-6 w-6 opacity-25" />
+              <p className="text-[12px]">No notifications yet</p>
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+              {notifs.map((n) => {
+                const cfg  = ICONS[n.type];
+                const Icon = cfg.icon;
+                return (
+                  <div
+                    key={n.id}
+                    className={`flex gap-3 px-4 py-3 transition-colors ${n.read ? "opacity-60" : "bg-slate-50/50"}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full ${cfg.bg} flex items-center justify-center shrink-0 mt-0.5`}>
+                      <Icon className={`h-4 w-4 ${cfg.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-semibold text-slate-800 leading-tight">{n.title}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{n.body}</p>
+                      {n.action && (
+                        <button
+                          onClick={() => handleAction(n)}
+                          className="text-[11px] text-emerald-600 font-semibold mt-1 hover:underline"
+                        >
+                          {n.action.label} →
+                        </button>
+                      )}
+                    </div>
+                    {!n.read && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NotificationBell;
