@@ -8,41 +8,30 @@
   :root {
     --background: 210 20% 98%;
     --foreground: 210 40% 11%;
-
     --card: 0 0% 100%;
     --card-foreground: 210 40% 11%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 210 40% 11%;
-
     --primary: 168 60% 36%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 210 20% 95%;
     --secondary-foreground: 210 40% 11%;
-
     --muted: 210 15% 93%;
     --muted-foreground: 210 10% 46%;
-
     --accent: 168 40% 92%;
     --accent-foreground: 168 60% 22%;
-
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 210 20% 88%;
     --input: 210 20% 88%;
     --ring: 168 60% 36%;
-
     --radius: 0.75rem;
-
     --success: 142 60% 40%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     --info: 210 80% 52%;
     --info-foreground: 0 0% 100%;
-
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 168 60% 36%;
@@ -51,7 +40,6 @@
     --sidebar-accent-foreground: 168 60% 22%;
     --sidebar-border: 210 20% 88%;
     --sidebar-ring: 168 60% 36%;
-
     --font-display: 'Plus Jakarta Sans', sans-serif;
     --font-body: 'Inter', sans-serif;
   }
@@ -91,12 +79,10 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
   }
-
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
   }
@@ -106,7 +92,7 @@
   .card-medical {
     @apply bg-card rounded-xl border shadow-sm p-6;
   }
-  
+
   .stat-card {
     @apply bg-card rounded-xl border p-4 flex flex-col gap-1;
   }
