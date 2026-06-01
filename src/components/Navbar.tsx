@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
+import { supabase } from "@/lib/supabaseClient";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   Leaf, LayoutDashboard, Database, LogOut, User,
   ClipboardList, Sparkles, MessageSquare, Menu, X,
-  BarChart3, BookOpen, Scale,
+  BarChart3, BookOpen, Scale, ShieldCheck,
 } from "lucide-react";
 
 const NAV_PATIENT = [
@@ -15,27 +17,38 @@ const NAV_PATIENT = [
   { label: "Dosage",          path: "/dosage",          icon: Scale           },
   { label: "Feedback",        path: "/feedback",        icon: MessageSquare   },
   { label: "Strains",         path: "/strains",         icon: Database        },
+  { label: "License",         path: "/license",         icon: ShieldCheck     },
   { label: "Info Centre",     path: "/info",            icon: BookOpen        },
 ];
 
 const NAV_DOCTOR = [
-  { label: "Dashboard",   path: "/dashboard",     icon: BarChart3       },
-  { label: "Profiling",   path: "/patient-input", icon: ClipboardList   },
-  { label: "Strains",     path: "/strains",       icon: Database        },
-  { label: "Dosage",      path: "/dosage",        icon: Scale           },
-  { label: "Feedback",    path: "/feedback",      icon: MessageSquare   },
-  { label: "Info Centre", path: "/info",          icon: BookOpen        },
+  { label: "Dashboard",   path: "/dashboard",     icon: BarChart3    },
+  { label: "Profiling",   path: "/patient-input", icon: ClipboardList},
+  { label: "Strains",     path: "/strains",       icon: Database     },
+  { label: "Dosage",      path: "/dosage",        icon: Scale        },
+  { label: "Feedback",    path: "/feedback",      icon: MessageSquare},
+  { label: "Info Centre", path: "/info",          icon: BookOpen     },
 ];
 
 const Navbar = () => {
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate   = useNavigate();
+  const location   = useLocation();
   const { currentUser, setCurrentUser } = useAppState();
-  const isDoctor  = useIsDoctor();
+  const isDoctor   = useIsDoctor();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [patientId,  setPatientId]  = useState<string | null>(null);
 
   const navItems = isDoctor ? NAV_DOCTOR : NAV_PATIENT;
   const isActive = (path: string) => location.pathname === path;
+
+  // Resolve patient_id for notification bell
+  useEffect(() => {
+    if (!isDoctor && currentUser?.id) {
+      supabase.from("patients").select("id")
+        .eq("user_id", currentUser.id).maybeSingle()
+        .then(({ data }) => setPatientId(data?.id ?? null));
+    }
+  }, [currentUser, isDoctor]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -64,12 +77,12 @@ const Navbar = () => {
           </button>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
+          <div className="hidden md:flex items-center gap-0.5 flex-1 justify-center overflow-x-auto">
             {navItems.map(({ label, path }) => (
               <button
                 key={path}
                 onClick={() => navigate(path)}
-                className={`px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors whitespace-nowrap ${
                   isActive(path)
                     ? "bg-emerald-50 text-emerald-700"
                     : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
@@ -80,13 +93,18 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Right — user + logout */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right — notifications + user + logout */}
+          <div className="flex items-center gap-1.5 shrink-0">
+
+            {/* Notification bell (patients only) */}
+            {!isDoctor && <NotificationBell patientId={patientId} />}
+
+            {/* User badge */}
             <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-1.5 pr-3 py-1">
               <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
                 <User className="h-3 w-3 text-emerald-700" />
               </div>
-              <span className="text-[12px] font-medium text-slate-700 max-w-[120px] truncate">
+              <span className="text-[12px] font-medium text-slate-700 max-w-[100px] truncate">
                 {currentUser?.full_name}
               </span>
               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
