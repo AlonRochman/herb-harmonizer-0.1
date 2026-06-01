@@ -4,17 +4,18 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppState } from "./context/AppContext";
 
-import Index from "./pages/Index";
-import PatientInputPage from "./pages/PatientInputPage";
-import RecommendationsPage from "./pages/RecommendationsPage";
-import DashboardPage from "./pages/DashboardPage";
-import FeedbackPage from "./pages/FeedbackPage";
-import StrainsCatalogPage from "./pages/StrainsCatalogPage";
-import InfoCenterPage from "./pages/InfoCenterPage";
-import DosageCalculatorPage from "./pages/DosageCalculatorPage";
-import LoginPage from "./pages/LoginPage";
-import NotFound from "./pages/NotFound";
-import Navbar from "./components/Navbar";
+import Index                  from "./pages/Index";
+import PatientInputPage       from "./pages/PatientInputPage";
+import RecommendationsPage    from "./pages/RecommendationsPage";
+import DashboardPage          from "./pages/DashboardPage";
+import FeedbackPage           from "./pages/FeedbackPage";
+import StrainsCatalogPage     from "./pages/StrainsCatalogPage";
+import InfoCenterPage         from "./pages/InfoCenterPage";
+import DosageCalculatorPage   from "./pages/DosageCalculatorPage";
+import LicenseVerificationPage from "./pages/LicenseVerificationPage";
+import LoginPage              from "./pages/LoginPage";
+import NotFound               from "./pages/NotFound";
+import Navbar                 from "./components/Navbar";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +26,7 @@ const AppRoutes = () => {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*"      element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
@@ -43,6 +44,7 @@ const AppRoutes = () => {
           <Route path="/strains"         element={<StrainsCatalogPage />} />
           <Route path="/info"            element={<InfoCenterPage />} />
           <Route path="/dosage"          element={<DosageCalculatorPage />} />
+          <Route path="/license"         element={<LicenseVerificationPage />} />
           <Route path="*"                element={<NotFound />} />
         </Routes>
       </main>
