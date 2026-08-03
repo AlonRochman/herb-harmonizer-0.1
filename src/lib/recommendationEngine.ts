@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { readOr } from "@/lib/supabaseRead";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,17 +66,26 @@ export async function fetchFeedbackIndex(
   if (!condition.trim()) return index;
 
   try {
-    const { data: profiles } = await supabase
-      .from("patient_profiles")
-      .select("patient_id")
-      .ilike("medical_conditions", `%${condition}%`);
+    // A failure here silently removes the feedback-derived boosts from every
+    // score, so it must be logged: the algorithm would still return results,
+    // just quietly worse ones.
+    const { data: profiles } = await readOr<{ patient_id: string }[]>(
+      "feedback index: cohort profiles", [],
+      supabase
+        .from("patient_profiles")
+        .select("patient_id")
+        .ilike("medical_conditions", `%${condition}%`),
+    );
 
     if (!profiles?.length) return index;
 
-    const { data: usageRows } = await supabase
-      .from("usage_records")
-      .select("id, strain_id, patient_id, feedback ( effectiveness_score, side_effects )")
-      .in("patient_id", profiles.map((p) => p.patient_id));
+    const { data: usageRows } = await readOr<Record<string, unknown>[]>(
+      "feedback index: cohort usage records", [],
+      supabase
+        .from("usage_records")
+        .select("id, strain_id, patient_id, feedback ( effectiveness_score, side_effects )")
+        .in("patient_id", profiles.map((p) => p.patient_id)),
+    );
 
     if (!usageRows) return index;
 

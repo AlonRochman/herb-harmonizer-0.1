@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { read } from "@/lib/supabaseRead";
 import type {
   PatientProfile,
   ClinicalConstraints,
@@ -112,8 +113,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const hydrate = async (authId: string, email?: string, metaName?: string) => {
       let name = metaName ?? "";
       try {
-        const { data } = await supabase
-          .from("users").select("full_name").eq("id", authId).maybeSingle();
+        const { data } = await read<{ full_name: string }>(
+          "auth hydrate: users.full_name",
+          supabase.from("users").select("full_name").eq("id", authId).maybeSingle(),
+        );
         if (data?.full_name) name = data.full_name;
         else await ensureUserRecords(authId, email, name || email || "Patient");
       } catch {}

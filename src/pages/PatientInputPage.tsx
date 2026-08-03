@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { supabase } from "../lib/supabaseClient";
+import { read, readOr } from "@/lib/supabaseRead";
+import LoadError from "@/components/LoadError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +102,7 @@ const PatientInputPage = () => {
 
   // DB
   const [dbPatients, setDbPatients]   = useState<any[]>([]);
+  const [patientsFailed, setPatientsFailed] = useState(false);
   const [isLoading, setIsLoading]     = useState(true);
   const [isSaving, setIsSaving]       = useState(false);
 
@@ -127,13 +130,17 @@ const PatientInputPage = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await supabase.from("patients").select(`
-          id,
-          users (full_name, email),
-          patient_profiles (age, gender, medical_conditions, sensitivities, preferences),
-          medical_licenses (category_approved, status)
-        `);
-        setDbPatients(data || []);
+        const { data, failed } = await readOr<any[]>(
+          "patient input: existing patients", [],
+          supabase.from("patients").select(`
+            id,
+            users (full_name, email),
+            patient_profiles (age, gender, medical_conditions, sensitivities, preferences),
+            medical_licenses (category_approved, status)
+          `),
+        );
+        setPatientsFailed(failed);
+        setDbPatients(data);
       } finally {
         setIsLoading(false);
       }
@@ -145,16 +152,22 @@ const PatientInputPage = () => {
   useEffect(() => {
     if (isDoctor || !currentUser?.id) return;
     const prefill = async () => {
-      const { data: patientRow } = await supabase
-        .from("patients").select("id")
-        .eq("user_id", currentUser.id).maybeSingle();
+      const { data: patientRow } = await read<{ id: string }>(
+        "patient input: resolve own patient row",
+        supabase.from("patients").select("id")
+          .eq("user_id", currentUser.id).maybeSingle(),
+      );
       if (!patientRow?.id) return;
 
+      // A failure here leaves the form blank instead of showing the saved
+      // profile, which reads as "no profile yet" - so it gets logged.
       const [{ data: profile }, { data: constraints }] = await Promise.all([
-        supabase.from("patient_profiles").select("*")
-          .eq("patient_id", patientRow.id).maybeSingle(),
-        supabase.from("clinical_constraints").select("thc_max, cbd_min, contraindications")
-          .eq("patient_id", patientRow.id).maybeSingle(),
+        read<Record<string, any>>("patient input: prefill profile",
+          supabase.from("patient_profiles").select("*")
+            .eq("patient_id", patientRow.id).maybeSingle()),
+        read<Record<string, any>>("patient input: prefill constraints",
+          supabase.from("clinical_constraints").select("thc_max, cbd_min, contraindications")
+            .eq("patient_id", patientRow.id).maybeSingle()),
       ]);
       if (profile) {
         setAge(profile.age != null ? String(profile.age) : "");
@@ -323,6 +336,7 @@ const PatientInputPage = () => {
           {isDoctor && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2">
               <p className="text-[12px] font-medium text-emerald-700">Load existing patient</p>
+              {patientsFailed && <LoadError what="the patient list" />}
               {isLoading ? (
                 <div className="flex items-center gap-2 text-[13px] text-slate-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading patients…

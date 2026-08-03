@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { read } from "@/lib/supabaseRead";
 import { useAppState } from "@/context/AppContext";
 import {
   ShieldCheck, Loader2, AlertCircle, CheckCircle2,
@@ -121,9 +122,12 @@ const LicenseVerificationPage = () => {
 
     try {
       // Resolve patient_id
-      const { data: patientRow } = await supabase
-        .from("patients").select("id")
-        .eq("user_id", currentUser.id).maybeSingle();
+      // Otherwise a failed read reports "Patient record not found", which is
+      // a different problem with a different fix.
+      const { data: patientRow } = await read<{ id: string }>(
+        "license: resolve patient for current user",
+        supabase.from("patients").select("id")
+          .eq("user_id", currentUser.id).maybeSingle());
 
       const patientId = patientRow?.id;
       if (!patientId) throw new Error("Patient record not found.");
@@ -141,14 +145,17 @@ const LicenseVerificationPage = () => {
       if (err) throw err;
 
       // Also update patient_profile medical_conditions if empty
-      const { data: profile } = await supabase
-        .from("patient_profiles").select("medical_conditions")
-        .eq("patient_id", patientId).maybeSingle();
+      const { data: profile } = await read<{ medical_conditions: string | null }>(
+        "license: existing medical_conditions",
+        supabase.from("patient_profiles").select("medical_conditions")
+          .eq("patient_id", patientId).maybeSingle());
 
       if (profile && !profile.medical_conditions) {
-        await supabase.from("patient_profiles")
+        // Unchecked write: this silently failed and still reported success.
+        const { error: profErr } = await supabase.from("patient_profiles")
           .update({ medical_conditions: licenseData.condition })
           .eq("patient_id", patientId);
+        if (profErr) throw profErr;
       }
 
       setSaved(true);

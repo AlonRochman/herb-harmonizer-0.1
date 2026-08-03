@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { read, readOr } from "@/lib/supabaseRead";
+import LoadError from "@/components/LoadError";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { useNavigate } from "react-router-dom";
@@ -280,20 +282,29 @@ const DashboardPage = () => {
   const [usageHistory, setUsageHistory]           = useState<any[]>([]);
   const [recommendations, setRecommendations]     = useState<any[]>([]);
   const [chartData, setChartData]                 = useState<any[]>([]);
+  const [loadError, setLoadError]                 = useState<string | null>(null);
+  const [reloadKey, setReloadKey]                 = useState(0);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
       try {
+        setLoadError(null);
         if (isDoctor) {
-          const { data } = await supabase
-            .from("patients").select("id, users(full_name)");
-          setPatients(data || []);
+          const { data, failed } = await readOr<any[]>(
+            "dashboard: patient list", [],
+            supabase.from("patients").select("id, users(full_name)"),
+          );
+          if (failed) setLoadError("the patient list");
+          setPatients(data);
         } else if (currentUser?.id) {
           // Resolve users.id → patients.id
-          const { data: patientRow } = await supabase
-            .from("patients").select("id")
-            .eq("user_id", currentUser.id).maybeSingle();
+          const { data: patientRow, failed } = await read<{ id: string }>(
+            "dashboard: resolve patient for current user",
+            supabase.from("patients").select("id")
+              .eq("user_id", currentUser.id).maybeSingle(),
+          );
+          if (failed) setLoadError("your patient record");
 
           const pid = patientRow?.id;
           if (pid) await loadAnalytics(pid);
@@ -303,27 +314,36 @@ const DashboardPage = () => {
       }
     };
     init();
-  }, [currentUser, isDoctor]);
+  }, [currentUser, isDoctor, reloadKey]);
 
   // ── Load analytics ────────────────────────────────────────────────────────
   const loadAnalytics = useCallback(async (patientId: string) => {
     setSelectedPatientId(patientId);
 
-    const [{ data: usage }, { data: recs }] = await Promise.all([
-      supabase
-        .from("usage_records")
-        .select("id, usage_date, dosage, consumption_method, strains(name), feedback(effectiveness_score)")
-        .eq("patient_id", patientId)
-        .order("usage_date", { ascending: true }),
-      supabase
-        .from("recommendations")
-        .select("id, recommendation_date, match_score, explanation, status, review_note, strains(name, thc_level, cbd_level, category)")
-        .eq("patient_id", patientId)
-        .order("recommendation_date", { ascending: false }),
+    // The recommendations read backs the approve/reject queue: if it fails,
+    // "no pending recommendations" would be a lie.
+    const [usageRes, recsRes] = await Promise.all([
+      readOr<any[]>("dashboard: usage history", [],
+        supabase
+          .from("usage_records")
+          .select("id, usage_date, dosage, consumption_method, strains(name), feedback(effectiveness_score)")
+          .eq("patient_id", patientId)
+          .order("usage_date", { ascending: true })),
+      readOr<any[]>("dashboard: recommendations", [],
+        supabase
+          .from("recommendations")
+          .select("id, recommendation_date, match_score, explanation, status, review_note, strains(name, thc_level, cbd_level, category)")
+          .eq("patient_id", patientId)
+          .order("recommendation_date", { ascending: false })),
     ]);
 
-    setUsageHistory(usage || []);
-    setRecommendations(recs || []);
+    const usage = usageRes.data;
+    if (usageRes.failed || recsRes.failed) {
+      setLoadError(recsRes.failed ? "this patient's recommendations" : "this patient's usage history");
+    }
+
+    setUsageHistory(usage);
+    setRecommendations(recsRes.data);
 
     const chart = (usage || [])
       .filter((u: any) => u.feedback?.length > 0)
@@ -404,6 +424,10 @@ const DashboardPage = () => {
           </div>
         )}
       </div>
+
+      {loadError && (
+        <LoadError what={loadError} onRetry={() => { setIsLoading(true); setReloadKey((k) => k + 1); }} />
+      )}
 
       {/* Doctor: no patient selected */}
       {isDoctor && !selectedPatientId ? (

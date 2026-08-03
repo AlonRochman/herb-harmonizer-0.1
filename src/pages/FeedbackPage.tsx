@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { read, readOr } from "@/lib/supabaseRead";
+import LoadError from "@/components/LoadError";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { Label } from "@/components/ui/label";
@@ -92,9 +94,11 @@ const StarRow = ({ score }: { score: number }) => (
 // ─── Resolve patient_id from current user ─────────────────────────────────────
 async function resolvePatientId(userId: string): Promise<string | null> {
   if (!userId || userId === "demo-id") return null;
-  const { data } = await supabase
-    .from("patients").select("id")
-    .eq("user_id", userId).maybeSingle();
+  const { data } = await read<{ id: string }>(
+    "feedback: resolve patient for current user",
+    supabase.from("patients").select("id")
+      .eq("user_id", userId).maybeSingle(),
+  );
   return data?.id ?? null;
 }
 
@@ -107,6 +111,7 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
   const [isSaving, setIsSaving]         = useState(false);
   const [done, setDone]                 = useState(false);
   const [errorMsg, setErrorMsg]         = useState("");
+  const [loadFailed, setLoadFailed]     = useState(false);
 
   const [selectedUsageId, setSelectedUsageId] = useState("");
   const [score, setScore]                     = useState(0);
@@ -121,22 +126,32 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
         // patient, show an empty list (the UI guides them to complete a profile).
         if (!patientId) { setUsageRecords([]); return; }
 
-        const { data } = await supabase
-          .from("usage_records")
-          .select("id, usage_date, dosage, consumption_method, strains(name, thc_level, cbd_level)")
-          .eq("patient_id", patientId)
-          .order("usage_date", { ascending: false });
+        const { data, failed } = await readOr<any[]>(
+          "feedback: sessions available to rate", [],
+          supabase
+            .from("usage_records")
+            .select("id, usage_date, dosage, consumption_method, strains(name, thc_level, cbd_level)")
+            .eq("patient_id", patientId)
+            .order("usage_date", { ascending: false }),
+        );
+        setLoadFailed(failed);
 
-        const ids = (data ?? []).map((r: any) => r.id);
+        const ids = data.map((r: any) => r.id);
         if (ids.length === 0) { setUsageRecords([]); return; }
 
         // Filter out sessions that already have feedback — scoped, not the whole table
-        const { data: existingFb } = await supabase
-          .from("feedback")
-          .select("usage_id")
-          .in("usage_id", ids);
-        const ratedIds = new Set((existingFb ?? []).map((f: any) => f.usage_id));
-        setUsageRecords((data ?? []).filter((r: any) => !ratedIds.has(r.id)));
+        const { data: existingFb, failed: fbFailed } = await readOr<any[]>(
+          "feedback: already-rated sessions", [],
+          supabase
+            .from("feedback")
+            .select("usage_id")
+            .in("usage_id", ids),
+        );
+        // Without this list every session looks unrated, so a failure here
+        // would offer duplicate ratings rather than show nothing.
+        if (fbFailed) { setLoadFailed(true); setUsageRecords([]); return; }
+        const ratedIds = new Set(existingFb.map((f: any) => f.usage_id));
+        setUsageRecords(data.filter((r: any) => !ratedIds.has(r.id)));
       } finally {
         setIsLoading(false);
       }
@@ -191,6 +206,8 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
           <p className="text-[13px] text-red-700">{errorMsg}</p>
         </div>
       )}
+
+      {loadFailed && <LoadError what="your treatment sessions" />}
 
       {/* Session picker */}
       <div className="space-y-1.5">
@@ -275,6 +292,7 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
 const HistoryTab = ({ patientId }: { patientId: string | null }) => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyFailed, setHistoryFailed] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -282,15 +300,19 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
       try {
         if (!patientId) { setHistory([]); return; }
 
-        const { data } = await supabase
-          .from("usage_records")
-          .select(`
-            id, usage_date, dosage, consumption_method,
-            strains ( name, thc_level, cbd_level, category ),
-            feedback ( effectiveness_score, side_effects, comments )
-          `)
-          .eq("patient_id", patientId)
-          .order("usage_date", { ascending: false });
+        const { data, failed } = await readOr<any[]>(
+          "feedback: treatment history", [],
+          supabase
+            .from("usage_records")
+            .select(`
+              id, usage_date, dosage, consumption_method,
+              strains ( name, thc_level, cbd_level, category ),
+              feedback ( effectiveness_score, side_effects, comments )
+            `)
+            .eq("patient_id", patientId)
+            .order("usage_date", { ascending: false }),
+        );
+        setHistoryFailed(failed);
 
         // Keep only rows that have at least one feedback
         const rows = (data ?? [])
@@ -314,6 +336,8 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
       <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
     </div>
   );
+
+  if (historyFailed) return <LoadError what="your treatment history" />;
 
   if (history.length === 0) return (
     <div className="flex flex-col items-center py-14 text-slate-400 gap-3">
@@ -426,20 +450,31 @@ const DoctorFeedbackView = () => {
   const [selectedPatient, setSelectedPatient] = useState("");
   const [feedbackRows, setFeedbackRows] = useState<any[]>([]);
   const [loadingFb, setLoadingFb]       = useState(false);
+  const [patientsFailed, setPatientsFailed] = useState(false);
+  const [fbFailed, setFbFailed]         = useState(false);
   const [isLoading, setIsLoading]       = useState(true);
 
   useEffect(() => {
-    supabase.from("patients").select("id, users(full_name)")
-      .then(({ data }) => { setPatients(data || []); setIsLoading(false); });
+    readOr<any[]>("feedback review: patient list", [],
+      supabase.from("patients").select("id, users(full_name)"),
+    ).then(({ data, failed }) => {
+      setPatients(data);
+      setPatientsFailed(failed);
+      setIsLoading(false);
+    });
   }, []);
 
   const loadFeedback = async (patientId: string) => {
     setSelectedPatient(patientId); setLoadingFb(true);
-    const { data } = await supabase
-      .from("usage_records")
-      .select("id, usage_date, dosage, consumption_method, strains(name,thc_level,cbd_level,category), feedback(effectiveness_score,side_effects,comments)")
-      .eq("patient_id", patientId)
-      .order("usage_date", { ascending: false });
+    const { data, failed } = await readOr<any[]>(
+      "feedback review: patient sessions", [],
+      supabase
+        .from("usage_records")
+        .select("id, usage_date, dosage, consumption_method, strains(name,thc_level,cbd_level,category), feedback(effectiveness_score,side_effects,comments)")
+        .eq("patient_id", patientId)
+        .order("usage_date", { ascending: false }),
+    );
+    setFbFailed(failed);
 
     const rows = (data ?? [])
       .map((r: any) => {
@@ -464,9 +499,12 @@ const DoctorFeedbackView = () => {
         </Select>
       </div>
 
+      {patientsFailed && <LoadError what="the patient list" />}
+      {fbFailed && <LoadError what="this patient's feedback" />}
+
       {loadingFb && <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading feedback…</div>}
 
-      {!loadingFb && selectedPatient && feedbackRows.length === 0 && (
+      {!loadingFb && !fbFailed && selectedPatient && feedbackRows.length === 0 && (
         <div className="flex flex-col items-center py-12 text-slate-400 gap-2">
           <MessageSquare className="h-8 w-8 opacity-30" />
           <p className="text-sm">No feedback submitted yet for this patient.</p>

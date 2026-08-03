@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { read } from "@/lib/supabaseRead";
 import { useAppState, ensureUserRecords } from "@/context/AppContext";
 import {
   Leaf, Loader2, Stethoscope, User, Eye, EyeOff, MailCheck,
@@ -111,11 +112,15 @@ const LoginPage = () => {
   const demoPatient = async () => {
     setLoading(true); setErrorMsg("");
     try {
-      const { data: userRow } = await supabase
-        .from("users").select("id, full_name")
-        .eq("id", DEMO_PATIENT_USER_ID).maybeSingle();
-      const row = userRow ?? (await supabase
-        .from("users").select("id, full_name").limit(1).maybeSingle()).data;
+      // Without logging, a failed read here surfaces as "No seeded users in
+      // the database", which sends you looking at the wrong thing entirely.
+      const { data: userRow } = await read<{ id: string; full_name: string }>(
+        "login: seeded demo patient",
+        supabase.from("users").select("id, full_name")
+          .eq("id", DEMO_PATIENT_USER_ID).maybeSingle());
+      const row = userRow ?? (await read<{ id: string; full_name: string }>(
+        "login: any seeded user (demo fallback)",
+        supabase.from("users").select("id, full_name").limit(1).maybeSingle())).data;
       if (!row) throw new Error("No seeded users in the database.");
       setCurrentUser({ id: row.id, full_name: row.full_name, role: "patient" });
       navigate("/");
@@ -129,9 +134,10 @@ const LoginPage = () => {
   const demoDoctor = async () => {
     setLoading(true); setErrorMsg("");
     try {
-      const { data: doc } = await supabase
-        .from("doctors").select("id, first_name, last_name")
-        .eq("is_verified", true).limit(1).maybeSingle();
+      const { data: doc } = await read<{ id: string; first_name: string; last_name: string }>(
+        "login: seeded verified doctor",
+        supabase.from("doctors").select("id, first_name, last_name")
+          .eq("is_verified", true).limit(1).maybeSingle());
       setCurrentUser({
         id: doc?.id ?? "doctor-demo",
         full_name: doc ? `Dr. ${doc.first_name} ${doc.last_name}` : "Dr. Demo",

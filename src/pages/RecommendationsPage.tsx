@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { read, readOr } from "@/lib/supabaseRead";
 import { useAppState } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -639,31 +640,57 @@ const RecommendationsPage = () => {
       try {
         let pid: string | null = null;
         let profile: Record<string, unknown> | null = null;
+        // Tracks whether a profile read *failed*, as opposed to finding
+        // nothing. The two must not be conflated: see the fallback below.
+        let profileReadFailed = false;
 
         if (patientProfile?.patientId && patientProfile.patientId !== "manual") {
           pid = String(patientProfile.patientId);
-          const { data } = await supabase.from("patient_profiles").select("*")
-            .eq("patient_id", pid).maybeSingle();
-          profile = data;
+          const r = await read<Record<string, unknown>>(
+            "recommendations: profile for selected patient",
+            supabase.from("patient_profiles").select("*")
+              .eq("patient_id", pid).maybeSingle());
+          profileReadFailed = profileReadFailed || r.failed;
+          profile = r.data;
         }
 
         if (!profile && currentUser?.id && currentUser.id !== "demo-id") {
-          const { data: row } = await supabase.from("patients").select("id")
-            .eq("user_id", currentUser.id).maybeSingle();
-          if (row?.id) {
-            pid = row.id;
-            const { data } = await supabase.from("patient_profiles").select("*")
-              .eq("patient_id", pid).maybeSingle();
-            profile = data;
+          const rowRes = await read<{ id: string }>(
+            "recommendations: resolve own patient row",
+            supabase.from("patients").select("id")
+              .eq("user_id", currentUser.id).maybeSingle());
+          profileReadFailed = profileReadFailed || rowRes.failed;
+          if (rowRes.data?.id) {
+            pid = rowRes.data.id;
+            const r = await read<Record<string, unknown>>(
+              "recommendations: own profile",
+              supabase.from("patient_profiles").select("*")
+                .eq("patient_id", pid).maybeSingle());
+            profileReadFailed = profileReadFailed || r.failed;
+            profile = r.data;
           }
         }
 
         let own = !!profile;
-        if (!profile) {
-          const { data } = await supabase.from("patient_profiles").select("*").limit(1).maybeSingle();
-          profile = data;
+        // Demo fallback: show *some* seeded profile so the exhibition build has
+        // something to display. Deliberately skipped when a read failed — it
+        // would silently present another patient's clinical data as if it were
+        // yours, which is the one outcome worse than an empty screen.
+        if (!profile && !profileReadFailed) {
+          const r = await read<Record<string, unknown>>(
+            "recommendations: demo fallback profile",
+            supabase.from("patient_profiles").select("*").limit(1).maybeSingle());
+          profile = r.data;
           pid = (profile?.patient_id as string) ?? null;
           own = false;
+        }
+
+        if (!profile && profileReadFailed) {
+          setBlocked(
+            "Your clinical profile could not be loaded, so no recommendation was generated. This is a connection or permissions failure, not an empty profile — reload the page, and check the browser console if it persists.",
+          );
+          setResults([]);
+          return;
         }
         if (pid && own) setPatientId(pid);
 
@@ -671,14 +698,39 @@ const RecommendationsPage = () => {
         const age = (profile?.age as number) ?? 40;
         setCondition((profile?.medical_conditions as string) || "");
 
-        const [{ data: strains }, { data: cons }, feedbackIndex, conditionIndex] = await Promise.all([
-          supabase.from("strains").select("*"),
+        const [strainsRes, consRes, feedbackIndex, conditionIndex] = await Promise.all([
+          readOr<any[]>("recommendations: strain catalogue", [],
+            supabase.from("strains").select("*")),
           pid
-            ? supabase.from("clinical_constraints").select("thc_max, cbd_min").eq("patient_id", pid).maybeSingle()
-            : Promise.resolve({ data: null }),
+            ? read<{ thc_max: number | null; cbd_min: number | null }>(
+                "recommendations: clinical constraints",
+                supabase.from("clinical_constraints").select("thc_max, cbd_min")
+                  .eq("patient_id", pid).maybeSingle())
+            : Promise.resolve({ data: null, failed: false }),
           fetchFeedbackIndex(conditions),
           fetchConditionIndex(),
         ]);
+        const strains = strainsRes.data;
+        const cons = consRes.data;
+
+        // Constraints drive the safety filter. If that read failed we cannot
+        // assert the licensed window holds, so we refuse rather than score
+        // against limits we could not confirm.
+        if (consRes.failed) {
+          setBlocked(
+            "Your licence limits could not be loaded, so no recommendation was generated. Recommending without confirming your THC ceiling would not be safe — reload the page to try again.",
+          );
+          setResults([]);
+          return;
+        }
+
+        if (strainsRes.failed) {
+          setBlocked(
+            "The strain catalogue could not be loaded, so no recommendation was generated. This is a connection failure rather than an empty catalogue — reload the page to try again.",
+          );
+          setResults([]);
+          return;
+        }
 
         const tMax = (cons as any)?.thc_max ?? null;
         const cMin = (cons as any)?.cbd_min ?? null;

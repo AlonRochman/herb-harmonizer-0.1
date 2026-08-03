@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { readOr } from "@/lib/supabaseRead";
+import LoadError from "@/components/LoadError";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -268,17 +270,18 @@ const StrainsCatalogPage = () => {
   const [thcRange, setThcRange]     = useState<[number, number]>([0, 30]);
   const [cbdRange, setCbdRange]     = useState<[number, number]>([0, 20]);
   const [showFilters, setShowFilters] = useState(false);
+  const [failed, setFailed]           = useState(false);
+  const [reloadKey, setReloadKey]     = useState(0);
 
   useEffect(() => {
-    supabase
-      .from("strains")
-      .select("*")
-      .order("name", { ascending: true })
-      .then(({ data }) => {
-        setStrains(data ?? []);
-        setLoading(false);
-      });
-  }, []);
+    readOr<any[]>("strain catalogue", [],
+      supabase.from("strains").select("*").order("name", { ascending: true }),
+    ).then(({ data, failed: didFail }) => {
+      setStrains(data);
+      setFailed(didFail);
+      setLoading(false);
+    });
+  }, [reloadKey]);
 
   // ── Filtered + sorted ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -526,6 +529,13 @@ const StrainsCatalogPage = () => {
       </div>
 
       {/* ── GRID ─────────────────────────────────────────────────────────── */}
+      {failed && (
+        <div className="mb-4">
+          <LoadError what="the strain catalogue"
+            onRetry={() => { setLoading(true); setReloadKey((k) => k + 1); }} />
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
