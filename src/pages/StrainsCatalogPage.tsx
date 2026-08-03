@@ -4,10 +4,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { readOr } from "@/lib/supabaseRead";
 import LoadError from "@/components/LoadError";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
-  Search, Loader2, Sparkles, SlidersHorizontal,
-  Star, ChevronDown, X, Leaf,
+  Search, SlidersHorizontal, ChevronDown, X, Leaf, ArrowRight,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,156 +49,139 @@ const parseTerpenes = (strain: Strain): string[] => {
   return [];
 };
 
-// ─── Style maps ───────────────────────────────────────────────────────────────
-const CATEGORY_STYLE: Record<string, { pill: string; bar: string; dot: string; label: string }> = {
-  indica:  { pill: "bg-purple-50 text-purple-700 border-purple-200",  bar: "bg-purple-500",  dot: "bg-purple-400",  label: "Indica"  },
-  sativa:  { pill: "bg-amber-50  text-amber-700  border-amber-200",   bar: "bg-amber-500",   dot: "bg-amber-400",   label: "Sativa"  },
-  hybrid:  { pill: "bg-teal-50   text-teal-700   border-teal-200",    bar: "bg-teal-500",    dot: "bg-teal-400",    label: "Hybrid"  },
+// Chemotype, the same reading the recommendations page puts on its axis. It is
+// derived from the two cannabinoid values rather than invented, which is what
+// earns it a place on the card.
+const chemotypeLabel = (thc: number, cbd: number) => {
+  const total = (thc ?? 0) + (cbd ?? 0);
+  const pos = total <= 0 ? 0.5 : (thc ?? 0) / total;
+  return pos >= 0.7 ? "Type I" : pos >= 0.3 ? "Type II" : "Type III";
 };
 
-const TERPENE_COLOR: Record<string, string> = {
-  myrcene:       "bg-green-50  text-green-700  border-green-200",
-  linalool:      "bg-purple-50 text-purple-700 border-purple-200",
-  limonene:      "bg-yellow-50 text-yellow-700 border-yellow-200",
-  caryophyllene: "bg-orange-50 text-orange-700 border-orange-200",
-  pinene:        "bg-teal-50   text-teal-700   border-teal-200",
-  terpinolene:   "bg-blue-50   text-blue-700   border-blue-200",
-  humulene:      "bg-rose-50   text-rose-700   border-rose-200",
+// ─── Category ─────────────────────────────────────────────────────────────────
+// Indica/sativa/hybrid used to carry purple/amber/teal. Amber and teal sit close
+// enough to resin and clinic to read as THC and CBD, and category is a botanical
+// label, not a measurement — so it gets typography and no colour of its own.
+const CATEGORY_LABEL: Record<string, string> = {
+  indica: "Indica",
+  sativa: "Sativa",
+  hybrid: "Hybrid",
 };
-const terpeneClass = (t: string) =>
-  TERPENE_COLOR[t.toLowerCase()] ?? "bg-slate-50 text-slate-600 border-slate-200";
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
 const CATEGORY_TABS = ["All", "Indica", "Sativa", "Hybrid"];
 
 // ─── Skeleton card ────────────────────────────────────────────────────────────
 const SkeletonCard = () => (
-  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden animate-pulse">
-    <div className="h-2 bg-slate-200 w-full" />
+  <div className="animate-pulse border border-rule bg-white">
     <div className="p-4 space-y-3">
       <div className="flex justify-between">
-        <div className="h-4 bg-slate-200 rounded w-2/5" />
-        <div className="h-5 bg-slate-100 rounded-full w-16" />
+        <div className="h-4 w-2/5 bg-rule" />
+        <div className="h-4 w-14 bg-rule/60" />
       </div>
-      <div className="h-3 bg-slate-100 rounded w-1/3" />
-      <div className="flex gap-2">
-        <div className="h-5 bg-slate-100 rounded-full w-16" />
-        <div className="h-5 bg-slate-100 rounded-full w-16" />
+      <div className="h-3 w-1/3 bg-rule/60" />
+      <div className="space-y-2 pt-1">
+        <div className="h-[3px] w-full bg-rule/60" />
+        <div className="h-[3px] w-full bg-rule/60" />
       </div>
-      <div className="flex gap-1 flex-wrap">
-        <div className="h-4 bg-slate-100 rounded-full w-12" />
-        <div className="h-4 bg-slate-100 rounded-full w-16" />
-        <div className="h-4 bg-slate-100 rounded-full w-10" />
+      <div className="flex gap-1">
+        <div className="h-4 w-16 bg-rule/60" />
+        <div className="h-4 w-12 bg-rule/60" />
       </div>
-      <div className="h-8 bg-slate-100 rounded-lg w-full" />
+      <div className="h-9 w-full bg-rule/60" />
     </div>
   </div>
 );
 
-// ─── THC / CBD bar ────────────────────────────────────────────────────────────
+// ─── Cannabinoid readout ──────────────────────────────────────────────────────
+// One row per cannabinoid, mono so the digits align down the grid, with the bar
+// in the cannabinoid's own colour: resin is THC, clinic is CBD, always.
 const LevelBar = ({
-  label, value, max = 30, colorClass, textClass,
+  label, value, max, barClass, textClass,
 }: {
-  label: string; value: number; max?: number;
-  colorClass: string; textClass: string;
+  label: string; value: number; max: number;
+  barClass: string; textClass: string;
 }) => (
-  <div className="space-y-1">
-    <div className="flex justify-between items-center">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
-      <span className={`text-[11px] font-bold ${textClass}`}>{value}%</span>
-    </div>
-    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
-        style={{ width: `${Math.min((value / max) * 100, 100)}%` }}
+  <div className="flex items-center gap-2.5 font-data text-[11px]">
+    <span className={`w-[70px] shrink-0 ${textClass}`}>
+      {label} <span className="font-semibold">{(value ?? 0).toFixed(1)}%</span>
+    </span>
+    <span className="relative h-[3px] flex-1 bg-rule">
+      <span
+        className={`absolute inset-y-0 left-0 ${barClass}`}
+        style={{ width: `${Math.min(((value ?? 0) / max) * 100, 100)}%` }}
       />
-    </div>
+    </span>
   </div>
+);
+
+// ─── Chip ─────────────────────────────────────────────────────────────────────
+// Indications and terpenes were seven decorative hues between them. Neither is a
+// cannabinoid or a risk, so both are set in ink and separated by rule.
+const Chip = ({ children }: { children: React.ReactNode }) => (
+  <span className="border border-rule px-2 py-0.5 text-[10px] text-ink/65">
+    {children}
+  </span>
 );
 
 // ─── Strain card ──────────────────────────────────────────────────────────────
+// The five-star rating that sat here was Math.random() — a fabricated number and
+// a fabricated review count, rerolled on every filter change. On a page that now
+// sets real measurements in mono, it would have read as a clinical figure. Same
+// reasoning that removed the % match ring from the recommendations page: if it
+// is not a measurement, it does not get to look like one.
 const StrainCard = ({ strain, onGetRec }: { strain: Strain; onGetRec: () => void }) => {
-  const cat       = strain.category?.toLowerCase() ?? "";
-  const catStyle  = CATEGORY_STYLE[cat];
-  const terpenes  = parseTerpenes(strain);
-  const medUses   = parseMedicalUses(strain.medical_uses);
-
-  // Simulated rating (would come from feedback aggregate in real app)
-  const fakeRating = useMemo(() => (3.5 + Math.random() * 1.4).toFixed(1), [strain.id]);
-  const fakeCount  = useMemo(() => Math.floor(10 + Math.random() * 60), [strain.id]);
+  const cat      = strain.category?.toLowerCase() ?? "";
+  const catLabel = CATEGORY_LABEL[cat];
+  const terpenes = parseTerpenes(strain);
+  const medUses  = parseMedicalUses(strain.medical_uses);
 
   return (
-    <div className="group bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-lg transition-all duration-200 flex flex-col">
-
-      {/* Category colour bar */}
-      <div className={`h-1.5 w-full ${catStyle?.bar ?? "bg-slate-200"}`} />
-
-      <div className="p-4 flex flex-col flex-1 gap-3">
+    <div className="group flex flex-col border border-rule bg-white transition-colors hover:border-ink/35">
+      <div className="flex flex-1 flex-col gap-3 p-4">
 
         {/* Header row */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-2 border-b border-rule pb-2.5">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors leading-tight truncate">
+            <h3 className="truncate font-display text-[15px] font-semibold leading-tight text-ink">
               {strain.name}
             </h3>
-            {/* Producer badge */}
             {strain.producer && (
-              <span className="inline-flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+              <span className="mt-0.5 block truncate text-[11px] text-ink/40">
                 {strain.producer}
               </span>
             )}
           </div>
-          {catStyle && (
-            <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize whitespace-nowrap ${catStyle.pill}`}>
-              {catStyle.label}
+          <div className="shrink-0 text-right font-data text-[10px] uppercase tracking-[0.1em]">
+            {catLabel && <span className="block text-ink/55">{catLabel}</span>}
+            <span className="mt-0.5 block text-ink/35">
+              {chemotypeLabel(strain.thc_level, strain.cbd_level)}
             </span>
-          )}
-        </div>
-
-        {/* Rating row */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex">
-            {[1,2,3,4,5].map((i) => (
-              <Star
-                key={i}
-                className={`h-3 w-3 ${parseFloat(fakeRating) >= i ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`}
-              />
-            ))}
           </div>
-          <span className="text-[11px] font-medium text-slate-600">{fakeRating}</span>
-          <span className="text-[11px] text-slate-400">({fakeCount})</span>
         </div>
 
-        {/* THC / CBD bars */}
-        <div className="space-y-2 bg-slate-50 rounded-xl px-3 py-2.5">
+        {/* Cannabinoid readout */}
+        <div className="space-y-1.5">
           <LevelBar
-            label="THC" value={strain.thc_level ?? 0}
-            colorClass="bg-amber-400" textClass="text-amber-700"
+            label="THC" value={strain.thc_level} max={30}
+            barClass="bg-resin" textClass="text-resin"
           />
           <LevelBar
-            label="CBD" value={strain.cbd_level ?? 0}
-            colorClass="bg-teal-400" textClass="text-teal-700"
+            label="CBD" value={strain.cbd_level} max={20}
+            barClass="bg-clinic" textClass="text-clinic"
           />
         </div>
 
-        {/* Medical uses tags */}
+        {/* Indications */}
         {medUses.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Medical uses
+            <p className="mb-1.5 font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">
+              Indications
             </p>
             <div className="flex flex-wrap gap-1">
-              {medUses.slice(0, 4).map((use) => (
-                <span
-                  key={use}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
-                >
-                  {use}
-                </span>
-              ))}
+              {medUses.slice(0, 4).map((use) => <Chip key={use}>{use}</Chip>)}
               {medUses.length > 4 && (
-                <span className="text-[10px] text-slate-400 px-1.5 py-0.5">
+                <span className="px-1 py-0.5 font-data text-[10px] text-ink/35">
                   +{medUses.length - 4}
                 </span>
               )}
@@ -208,23 +189,18 @@ const StrainCard = ({ strain, onGetRec }: { strain: Strain; onGetRec: () => void
           </div>
         )}
 
-        {/* Terpene tags */}
+        {/* Terpenes */}
         {terpenes.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <p className="mb-1.5 font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">
               Terpenes
             </p>
             <div className="flex flex-wrap gap-1">
-              {terpenes.slice(0, 3).map((t) => (
-                <span
-                  key={t}
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${terpeneClass(t)}`}
-                >
-                  {t}
-                </span>
-              ))}
+              {terpenes.slice(0, 3).map((t) => <Chip key={t}>{t}</Chip>)}
               {terpenes.length > 3 && (
-                <span className="text-[10px] text-slate-400 px-1">+{terpenes.length - 3}</span>
+                <span className="px-1 py-0.5 font-data text-[10px] text-ink/35">
+                  +{terpenes.length - 3}
+                </span>
               )}
             </div>
           </div>
@@ -232,14 +208,13 @@ const StrainCard = ({ strain, onGetRec }: { strain: Strain; onGetRec: () => void
 
         {/* CTA — pushed to bottom */}
         <div className="mt-auto pt-1">
-          <Button
-            size="sm"
-            className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs h-9 rounded-xl font-semibold transition-all group-hover:bg-emerald-600"
+          <button
             onClick={onGetRec}
+            className="flex h-9 w-full items-center justify-center gap-1.5 border border-ink/25 font-data text-[10px] uppercase tracking-[0.12em] text-ink transition-colors hover:bg-ink hover:text-paper"
           >
-            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
             Get recommendation
-          </Button>
+            <ArrowRight className="h-3 w-3" />
+          </button>
         </div>
       </div>
     </div>
@@ -349,137 +324,152 @@ const StrainsCatalogPage = () => {
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-5xl py-2 animate-in fade-in duration-500">
 
-      {/* ── PAGE HEADER ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-            <Leaf className="h-5 w-5 text-emerald-600" />
-            Strains catalog
-          </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            {strains.length} varieties · {filtered.length} shown
-          </p>
-        </div>
+      {/* ── MASTHEAD ─────────────────────────────────────────────────────── */}
+      <header className="mb-6 border-b-2 border-ink pb-5">
+        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+          Formulary
+        </p>
+        <h1 className="mt-2 flex items-center gap-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+          <Leaf className="h-5 w-5 shrink-0 text-ink/40" />
+          Strain catalogue
+        </h1>
 
-        {/* Search + sort row */}
-        <div className="flex gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <Input
-              placeholder="Name, producer, condition…"
-              className="pl-9 text-[13px] bg-white h-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 font-data text-[11px]">
+            <div className="flex gap-2">
+              <dt className="text-ink/40">Varieties</dt>
+              <dd className="text-ink/75">{strains.length}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-ink/40">Shown</dt>
+              <dd className="text-ink/75">{filtered.length}</dd>
+            </div>
+          </dl>
+
+          {/* Search + sort + filters */}
+          <div className="flex w-full gap-2 sm:w-auto">
+            <div className="relative flex-1 sm:w-56">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
+              <Input
+                placeholder="Name, producer, indication…"
+                className="h-9 rounded-none border-rule bg-white pl-9 text-[13px] text-ink placeholder:text-ink/25 focus-visible:ring-ink/20"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink/35 transition-colors hover:text-ink"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Sort dropdown */}
+            <div className="relative">
               <button
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                onClick={() => setShowSort((v) => !v)}
+                className="flex h-9 items-center gap-1.5 whitespace-nowrap border border-rule bg-white px-3 font-data text-[10px] uppercase tracking-[0.1em] text-ink/65 transition-colors hover:border-ink/35 hover:text-ink"
               >
-                <X className="h-3.5 w-3.5" />
+                <ChevronDown className="h-3 w-3" />
+                {SORT_OPTIONS.find((o) => o.value === sortKey)?.label ?? "Sort"}
               </button>
-            )}
-          </div>
+              {showSort && (
+                <div className="absolute right-0 top-10 z-20 min-w-44 border border-rule bg-white py-1">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setSortKey(opt.value); setShowSort(false); }}
+                      className={`w-full px-3 py-2 text-left font-data text-[11px] transition-colors hover:bg-paper ${
+                        sortKey === opt.value ? "text-ink" : "text-ink/55"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          {/* Sort dropdown */}
-          <div className="relative">
+            {/* Filter toggle */}
             <button
-              onClick={() => setShowSort((v) => !v)}
-              className="flex items-center gap-1.5 h-9 px-3 text-[13px] bg-white border border-slate-200 rounded-md hover:border-slate-300 text-slate-600 whitespace-nowrap"
+              onClick={() => setShowFilters((v) => !v)}
+              className={`flex h-9 items-center gap-1.5 whitespace-nowrap border px-3 font-data text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                showFilters || hasActiveFilters
+                  ? "border-ink bg-ink text-paper"
+                  : "border-rule bg-white text-ink/65 hover:border-ink/35 hover:text-ink"
+              }`}
             >
-              <ChevronDown className="h-3.5 w-3.5" />
-              {SORT_OPTIONS.find((o) => o.value === sortKey)?.label ?? "Sort"}
+              <SlidersHorizontal className="h-3 w-3" />
+              Filters
             </button>
-            {showSort && (
-              <div className="absolute right-0 top-10 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-44">
-                {SORT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => { setSortKey(opt.value); setShowSort(false); }}
-                    className={`w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 transition-colors ${sortKey === opt.value ? "text-emerald-700 font-medium" : "text-slate-700"}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-
-          {/* Filter toggle */}
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className={`flex items-center gap-1.5 h-9 px-3 text-[13px] border rounded-md transition-colors whitespace-nowrap ${
-              showFilters || hasActiveFilters
-                ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {hasActiveFilters && (
-              <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center">
-                ✓
-              </span>
-            )}
-          </button>
         </div>
-      </div>
+      </header>
+
+      <div className="space-y-5">
 
       {/* ── FILTER PANEL ─────────────────────────────────────────────────── */}
       {showFilters && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 animate-in slide-in-from-top-1 duration-200">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="border border-rule bg-white p-4 animate-in slide-in-from-top-1 duration-200">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
 
-            {/* THC range */}
+            {/* THC range — resin, because it is THC */}
             <div className="space-y-2">
               <div className="flex justify-between">
-                <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">
+                <label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">
                   THC level
                 </label>
-                <span className="text-[12px] text-amber-700 font-medium">
+                <span className="font-data text-[11px] text-resin">
                   {thcRange[0]}% – {thcRange[1]}%
                 </span>
               </div>
-              <div className="flex gap-3 items-center">
+              <div className="flex items-center gap-3">
                 <input
                   type="range" min={0} max={30} step={1}
+                  aria-label="Minimum THC"
                   value={thcRange[0]}
                   onChange={(e) => setThcRange([+e.target.value, thcRange[1]])}
-                  className="flex-1 accent-amber-500"
+                  className="flex-1 accent-resin"
                 />
                 <input
                   type="range" min={0} max={30} step={1}
+                  aria-label="Maximum THC"
                   value={thcRange[1]}
                   onChange={(e) => setThcRange([thcRange[0], +e.target.value])}
-                  className="flex-1 accent-amber-500"
+                  className="flex-1 accent-resin"
                 />
               </div>
             </div>
 
-            {/* CBD range */}
+            {/* CBD range — clinic, because it is CBD */}
             <div className="space-y-2">
               <div className="flex justify-between">
-                <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">
+                <label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">
                   CBD level
                 </label>
-                <span className="text-[12px] text-teal-700 font-medium">
+                <span className="font-data text-[11px] text-clinic">
                   {cbdRange[0]}% – {cbdRange[1]}%
                 </span>
               </div>
-              <div className="flex gap-3 items-center">
+              <div className="flex items-center gap-3">
                 <input
                   type="range" min={0} max={20} step={1}
+                  aria-label="Minimum CBD"
                   value={cbdRange[0]}
                   onChange={(e) => setCbdRange([+e.target.value, cbdRange[1]])}
-                  className="flex-1 accent-teal-500"
+                  className="flex-1 accent-clinic"
                 />
                 <input
                   type="range" min={0} max={20} step={1}
+                  aria-label="Maximum CBD"
                   value={cbdRange[1]}
                   onChange={(e) => setCbdRange([cbdRange[0], +e.target.value])}
-                  className="flex-1 accent-teal-500"
+                  className="flex-1 accent-clinic"
                 />
               </div>
             </div>
@@ -488,7 +478,7 @@ const StrainsCatalogPage = () => {
           {hasActiveFilters && (
             <button
               onClick={resetFilters}
-              className="text-[12px] text-slate-500 hover:text-slate-700 underline underline-offset-2"
+              className="mt-4 font-data text-[10px] uppercase tracking-[0.12em] text-ink/50 underline underline-offset-4 transition-colors hover:text-ink"
             >
               Reset filters
             </button>
@@ -497,32 +487,22 @@ const StrainsCatalogPage = () => {
       )}
 
       {/* ── CATEGORY TABS ─────────────────────────────────────────────────── */}
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex flex-wrap gap-1.5">
         {CATEGORY_TABS.map((tab) => {
           const count = counts[tab as keyof typeof counts] ?? 0;
           const isActive = tab === activeTab;
-          const style = CATEGORY_STYLE[tab.toLowerCase()];
           return (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-all ${
+              className={`inline-flex items-center gap-2 border px-3 py-1.5 font-data text-[10px] uppercase tracking-[0.1em] transition-colors ${
                 isActive
-                  ? style
-                    ? `${style.pill} border-current`
-                    : "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  ? "border-ink bg-ink text-paper"
+                  : "border-rule bg-white text-ink/55 hover:border-ink/35 hover:text-ink"
               }`}
             >
-              {style && isActive && (
-                <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-              )}
               {tab}
-              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
-                isActive ? "bg-white/30" : "bg-slate-100 text-slate-400"
-              }`}>
-                {count}
-              </span>
+              <span className={isActive ? "text-paper/60" : "text-ink/35"}>{count}</span>
             </button>
           );
         })}
@@ -530,34 +510,32 @@ const StrainsCatalogPage = () => {
 
       {/* ── GRID ─────────────────────────────────────────────────────────── */}
       {failed && (
-        <div className="mb-4">
-          <LoadError what="the strain catalogue"
-            onRetry={() => { setLoading(true); setReloadKey((k) => k + 1); }} />
-        </div>
+        <LoadError what="the strain catalogue"
+          onRetry={() => { setLoading(true); setReloadKey((k) => k + 1); }} />
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-          <Search className="h-10 w-10 mb-3 opacity-25" />
-          <p className="text-[15px] font-medium text-slate-600 mb-1">No strains found</p>
-          <p className="text-[13px]">
-            {searchTerm ? `No results for "${searchTerm}"` : "Try adjusting the filters"}
+        <div className="flex flex-col items-center justify-center border border-rule bg-white py-20 text-center">
+          <Search className="mb-3 h-5 w-5 text-ink/25" />
+          <p className="mb-1 text-[14px] font-medium text-ink/80">No strains match</p>
+          <p className="text-[13px] text-ink/45">
+            {searchTerm ? `Nothing matched "${searchTerm}"` : "Try widening the filters"}
           </p>
           {(searchTerm || hasActiveFilters) && (
             <button
               onClick={() => { setSearchTerm(""); resetFilters(); setActiveTab("All"); }}
-              className="mt-4 text-[13px] text-emerald-700 underline underline-offset-2"
+              className="mt-4 border border-ink/25 px-3 py-1.5 font-data text-[10px] uppercase tracking-[0.12em] text-ink transition-colors hover:bg-paper"
             >
               Clear all filters
             </button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((strain) => (
             <StrainCard
               key={strain.id}
@@ -570,10 +548,11 @@ const StrainsCatalogPage = () => {
 
       {/* Results count footer */}
       {!loading && filtered.length > 0 && (
-        <p className="text-center text-[12px] text-slate-400 pb-4">
-          Showing {filtered.length} of {strains.length} strains
+        <p className="pb-4 text-center font-data text-[10px] uppercase tracking-[0.12em] text-ink/35">
+          {filtered.length} of {strains.length} strains
         </p>
       )}
+      </div>
     </div>
   );
 };
