@@ -42,11 +42,18 @@ claims consistent.
 - `src/lib/supabaseRead.ts` — `read()` / `readOr()`: the only sanctioned way to
   run a Supabase read. Returns `{ data, failed }` so callers can tell "loaded,
   genuinely empty" from "load failed".
-- `src/components/Navbar.tsx` — nav + notification bell. The bell derives
+- `src/components/Navbar.tsx` — nav + notification bell. **Verified by tests**
+  (`src/test/notificationBell.test.tsx`, 2026-08-03): unread badge for an
+  approved recommendation, refetch on open, failed read surfacing instead of an
+  empty inbox, and read state surviving remount while staying per-patient. The
+  bell derives
   notifications from DB state (nothing is stored), refetches when the dropdown
   opens so an approval made in another session appears without a reload, and
-  persists dismissed IDs in `localStorage` under `mc_notif_read`, keyed by
-  patient id. That was a deliberate choice over adding a DB column: read state
+  persists dismissed IDs in `localStorage` under **`mc_notif_read`** — a map of
+  `{ [patientId]: string[] }`, capped at 100 ids, following the `mc_*` key
+  convention (`mc_a11y`, `mc_current_user`). Notification ids are stable and
+  derived (`rec_<id>`, `fb_<id>`, `reminder_30`), which is what makes storing
+  them viable. That was a deliberate choice over adding a DB column: read state
   is a prototype affordance, and it follows the `mc_a11y` pattern. Consequence:
   read state is per-device. There is no realtime subscription — rejected as one
   more thing to fail during a live demo.
@@ -79,7 +86,9 @@ Patient conditions in seeded data are essentially "Chronic Pain" and "Anxiety".
 - **Supabase never throws.** Check `{ error }` on every write. Pattern in
   PatientInputPage: `must(await supabase...)` throws on error — reuse it.
   Silent write failures were a real bug class here.
-- **Never destructure only `{ data }` from a read.** Same root cause: a failed
+- **`read()`/`readOr()` from `src/lib/supabaseRead.ts` are mandatory for every
+  Supabase read; `<LoadError>` is mandatory wherever a failed read would show as
+  an empty state.** Never destructure only `{ data }`. Same root cause: a failed
   query resolves as `{ data: null, error }`, so dropping `error` renders "no
   results" for "the query broke". All reads go through `read()` / `readOr()` in
   `src/lib/supabaseRead.ts`, which logs against a label naming the call site.
@@ -112,17 +121,29 @@ use the old emerald/shadcn look — rolling the tokens out is an open task.
 
 ## Roles
 
-`NAV_DOCTOR` in Navbar.tsx must stay in sync with `DOCTOR_ACTIONS` in Index.tsx.
+**`DOCTOR_ACTIONS` in Index.tsx is the single source of truth for what a
+clinician can do.** `NAV_DOCTOR` in Navbar.tsx mirrors it; if the two disagree,
+DOCTOR_ACTIONS wins and the nav is the bug. Adding a clinician tool means adding
+it to DOCTOR_ACTIONS first.
 Dosage and Info Centre were removed from the doctor nav (2026-08-03): both are
 written in the second person for the patient and neither touches a patient
 record. Profiling stays — it is where a clinician enters a patient's profile and
 constraints, and the closed loop starts there.
 
-No route is role-guarded; only the nav differs. A doctor can still reach
-/dosage, /license or /recommendations by URL, and a patient can reach
-/dashboard. Also, Index.tsx has a doctor-specific home (DOCTOR_ACTIONS,
-"Clinical tools") that the doctor nav does not link to — reachable only via the
-logo. Both are open items, not bugs.
+`src/components/RequireRole.tsx` guards the three routes with **no** clinician
+branch: /dosage, /info, /license (patient-only; doctors redirect to /dashboard).
+Deliberately NOT guarded, because they render per role and guarding them would
+delete working features:
+
+- `/` — Index renders DOCTOR_ACTIONS ("Clinical tools") for doctors. This *is*
+  the doctor home, and NAV_DOCTOR now links it.
+- `/dashboard` — patients see "My treatment record" with their approved/pending
+  recommendations, and FeedbackPage sends a patient here after submitting.
+- `/feedback` — clinicians get the patient-review tab, which is in DOCTOR_ACTIONS.
+- `/patient-input` — doctors create patients; patients edit their own profile.
+
+The guard takes one allowed role and redirects. There is no permission model and
+there should not be one in this prototype.
 
 ## Operational gotchas
 
@@ -149,7 +170,9 @@ across refresh, evidence engine live (strain_conditions seeded), Recommendations
 page redesigned, dead component files removed.
 
 Done 2026-08-03 (second session):
-- Notification bell verified and fixed — it had never worked end to end: both
+- Minimal role guards (`RequireRole`) on /dosage, /info, /license; doctor home
+  linked from NAV_DOCTOR. See Roles for what is deliberately unguarded.
+- Notification bell fixed and put under test — it had never worked: both
   reads dropped `error`, it fetched once per mount so a cross-session approval
   needed a reload, and read state died on refresh. Now refetches on open, with
   read state in `localStorage` (`mc_notif_read`).

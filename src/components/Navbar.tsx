@@ -28,6 +28,7 @@ const NAV_PATIENT = [
 // personalised dose", "essential knowledge for new patients") and neither
 // touches a patient record, so they are not clinician tools.
 const NAV_DOCTOR = [
+  { label: "Home",        path: "/",              icon: LayoutDashboard },
   { label: "Dashboard",   path: "/dashboard",     icon: BarChart3     },
   { label: "Profiling",   path: "/patient-input", icon: ClipboardList },
   { label: "Strains",     path: "/strains",       icon: Database      },

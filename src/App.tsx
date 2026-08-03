@@ -17,6 +17,7 @@ import LoginPage              from "./pages/LoginPage";
 import NotFound               from "./pages/NotFound";
 import Navbar                 from "./components/Navbar";
 import AccessibilityWidget    from "./components/AccessibilityWidget";
+import RequireRole            from "./components/RequireRole";
 
 const queryClient = new QueryClient();
 
@@ -43,9 +44,9 @@ const AppRoutes = () => {
           <Route path="/dashboard"       element={<DashboardPage />} />
           <Route path="/feedback"        element={<FeedbackPage />} />
           <Route path="/strains"         element={<StrainsCatalogPage />} />
-          <Route path="/info"            element={<InfoCenterPage />} />
-          <Route path="/dosage"          element={<DosageCalculatorPage />} />
-          <Route path="/license"         element={<LicenseVerificationPage />} />
+          <Route path="/info"            element={<RequireRole role="patient"><InfoCenterPage /></RequireRole>} />
+          <Route path="/dosage"          element={<RequireRole role="patient"><DosageCalculatorPage /></RequireRole>} />
+          <Route path="/license"         element={<RequireRole role="patient"><LicenseVerificationPage /></RequireRole>} />
           <Route path="*"                element={<NotFound />} />
         </Routes>
       </main>
