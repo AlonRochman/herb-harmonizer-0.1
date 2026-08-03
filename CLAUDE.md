@@ -132,9 +132,19 @@ reserved for the negative verdict, and the efficacy chart is ink (efficacy is no
 a cannabinoid, so clinic would have been wrong). `match_score` is labelled "rule
 sum", never "%". Feedback followed on 2026-08-03 (efficacy on the ink scale with
 flag at the poor end; THC/CBD chips moved off amber/teal, which were close
-enough to resin/clinic to mislead). **Still on the old emerald/shadcn look:
-LoginPage, StrainsCatalogPage, InfoCenterPage, Index.** Those are the only pages
-left to roll the tokens onto.
+enough to resin/clinic to mislead). Login and the strain catalogue followed on
+2026-08-03. Login carries no clinical values at all, so font-data there is only
+the small-caps chrome (labels, actions) and never the headings or prose; a
+blocked sign-in takes flag, and the demo patient/clinician buttons are neutral
+ink because which role you demo is a route, not a clinical reading. The
+catalogue moved THC to resin and CBD to clinic, and dropped both hue maps: the
+indica/sativa/hybrid colours were purple/amber/teal, and amber/teal sat close
+enough to resin/clinic to read as THC and CBD on a card showing both, while a
+terpene is neither a cannabinoid nor a risk. Its five-star rating was **deleted,
+not restyled** — score and count were both `Math.random()`, rerolled on every
+filter change, and the mono face on that page now means "measured". Same call as
+the % match ring. **Still on the old emerald/shadcn look: InfoCenterPage,
+Index.** Those are the only pages left to roll the tokens onto.
 
 ## Roles
 
@@ -205,10 +215,17 @@ Done 2026-08-03 (second session):
 - README rewritten around the algorithm with verified line links.
 - bun.lock / bun.lockb deleted; npm is the single lockfile.
 
+Done 2026-08-03 (third session):
+- Login and the strain catalogue restyled in the clinical language. Shell only:
+  every auth path (validate, signUp, signInWithPassword, ensureUserRecords, both
+  demo reads) and the catalogue's filter/sort/count useMemos are unchanged. See
+  Design language for the two colour fixes and the one deletion.
+- The catalogue's four range inputs gained aria-labels; they had none.
+
 Next candidates:
-1. Roll the clinical design language onto Login, then Catalog, then Info/Index
-   (Recommendations, Dashboard and Feedback are done). Shell only — the flows
-   in these pages are working and should not be refactored.
+1. Roll the clinical design language onto Info Centre, then Index — the last two
+   (Recommendations, Dashboard, Feedback, Login and Catalog are done). Shell
+   only — the flows in these pages are working and should not be refactored.
 2. Real RLS policies per `auth.uid()` (requires deciding doctor identity — the
    demo clinician has no Auth account).
 3. Role-guard the routes, and decide the doctor home (see Roles above).
