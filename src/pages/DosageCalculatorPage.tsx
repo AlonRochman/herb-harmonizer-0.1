@@ -3,11 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/context/AppContext";
 import {
   Scale, Zap, Droplets, Wind, Pill, Leaf,
-  ChevronRight, ChevronLeft, AlertCircle, Info,
+  ChevronRight, AlertCircle, Info,
   Clock, Timer, TrendingUp, ShieldCheck, BookOpen,
   RotateCcw, ArrowRight, CheckCircle2,
 } from "lucide-react";
 
+// ─── Shared field styling ─────────────────────────────────────────────────────
+const fieldCls =
+  "h-10 w-full border px-3 font-data text-[14px] text-ink outline-none transition-colors " +
+  "placeholder:text-ink/25 focus:border-ink/40 focus:ring-1 focus:ring-ink/20";
+
+const labelCls =
+  "flex items-center gap-1.5 font-data text-[10px] uppercase tracking-[0.14em] text-ink/45";
+
+const sectionCls = "font-data text-[10px] uppercase tracking-[0.14em] text-ink/40";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExperienceLevel = "none" | "low" | "moderate" | "experienced";
 type ConsumptionMethod = "vaporizer" | "oil" | "capsules" | "smoking" | "edibles" | "topical";
@@ -172,11 +181,15 @@ const METHODS: { id: ConsumptionMethod; label: string; icon: typeof Wind; sub: s
   { id: "topical",   label: "Topical",    icon: Zap,      sub: "Local only, no high"                 },
 ];
 
-const EXPERIENCE_OPTS: { id: ExperienceLevel; label: string; sub: string; color: string }[] = [
-  { id: "none",       label: "None",       sub: "Never used cannabis",        color: "border-slate-300 bg-slate-50  text-slate-700" },
-  { id: "low",        label: "Low",        sub: "A few times, months ago",    color: "border-teal-300  bg-teal-50   text-teal-800"  },
-  { id: "moderate",   label: "Moderate",   sub: "Regular use in past year",   color: "border-amber-300 bg-amber-50  text-amber-800" },
-  { id: "experienced",label: "Experienced",sub: "Current regular user",       color: "border-purple-300 bg-purple-50 text-purple-800" },
+// Experience level is a nominal category, not a measurement — the old
+// slate/teal/amber/violet ramp implied an ordered clinical scale it does not
+// have, and two of its hues were resin and clinic at a glance. Selection is
+// carried by ink weight instead.
+const EXPERIENCE_OPTS: { id: ExperienceLevel; label: string; sub: string }[] = [
+  { id: "none",        label: "None",        sub: "Never used cannabis"      },
+  { id: "low",         label: "Low",         sub: "A few times, months ago"  },
+  { id: "moderate",    label: "Moderate",    sub: "Regular use in past year" },
+  { id: "experienced", label: "Experienced", sub: "Current regular user"     },
 ];
 
 // ─── Animated number ──────────────────────────────────────────────────────────
@@ -197,85 +210,76 @@ const ResultPanel = ({ result, method }: { result: DosageResult; method: Consump
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-500">
 
-      {/* Primary dose card */}
-      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 rounded-2xl p-5 text-white relative overflow-hidden">
-        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-10 bg-white" />
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-emerald-200 mb-2">
+      {/* Primary dose — the one figure this page exists to produce */}
+      <div className="bg-ink p-5 text-paper">
+        <p className="mb-2 font-data text-[10px] uppercase tracking-[0.2em] text-paper/50">
           Recommended starting dose
         </p>
-        <div className="flex items-end gap-3 mb-3">
-          <span className="text-4xl font-extrabold tracking-tight leading-none">
-            {result.startDose}
-          </span>
-        </div>
-        <p className="text-[13px] text-emerald-100 leading-relaxed">
+        <p className="font-data text-[34px] font-semibold leading-none tracking-tight">
+          {result.startDose}
+        </p>
+        <p className="mt-3 text-[13px] leading-relaxed text-paper/70">
           {result.frequency}
         </p>
       </div>
 
-      {/* Kinetics row */}
+      {/* Kinetics row — times are measured values, so mono */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { icon: Clock,      label: "Onset",      value: result.onsetTime,          color: "bg-blue-50  border-blue-200  text-blue-700"   },
-          { icon: Timer,      label: "Duration",   value: result.duration,            color: "bg-purple-50 border-purple-200 text-purple-700" },
-          { icon: TrendingUp, label: "Titrate",    value: result.titrationStep,       color: "bg-amber-50 border-amber-200  text-amber-700"  },
-        ].map(({ icon: Icon, label, value, color }) => (
+          { icon: Clock,      label: "Onset",    value: result.onsetTime    },
+          { icon: Timer,      label: "Duration", value: result.duration     },
+          { icon: TrendingUp, label: "Titrate",  value: result.titrationStep },
+        ].map(({ icon: Icon, label, value }) => (
           <AnimatedBadge key={label} color="">
-            <div className={`border rounded-xl p-3 text-center ${color}`}>
-              <Icon className="h-4 w-4 mx-auto mb-1 opacity-70" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide opacity-60 mb-0.5">{label}</p>
-              <p className="text-[12px] font-semibold leading-tight">{value}</p>
+            <div className="border border-rule bg-white p-3 text-center">
+              <Icon className="mx-auto mb-1 h-3.5 w-3.5 text-ink/35" />
+              <p className="mb-0.5 font-data text-[9px] uppercase tracking-[0.12em] text-ink/40">{label}</p>
+              <p className="font-data text-[12px] font-semibold leading-tight text-ink">{value}</p>
             </div>
           </AnimatedBadge>
         ))}
       </div>
 
-      {/* Strain guidance */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-          Strain guidance based on your profile
-        </p>
+      {/* Strain guidance — the only two cannabinoid figures on this page */}
+      <div className="space-y-3 border border-rule bg-white p-4">
+        <p className={sectionCls}>Strain guidance based on your profile</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Max THC</span>
-              <span className="text-[13px] font-bold text-amber-700">{result.thcCap}%</span>
+            <div className="flex items-center justify-between font-data text-[11px]">
+              <span className="uppercase tracking-[0.1em] text-resin">Max THC</span>
+              <span className="font-semibold text-resin">{result.thcCap}%</span>
             </div>
-            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-300 to-amber-500 rounded-full transition-all duration-700"
-                style={{ width: `${(result.thcCap / 30) * 100}%` }}
-              />
+            <div className="h-[3px] bg-rule">
+              <div className="h-full bg-resin transition-all duration-700"
+                style={{ width: `${(result.thcCap / 30) * 100}%` }} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">Min CBD</span>
-              <span className="text-[13px] font-bold text-teal-700">{result.cbdFloor}%</span>
+            <div className="flex items-center justify-between font-data text-[11px]">
+              <span className="uppercase tracking-[0.1em] text-clinic">Min CBD</span>
+              <span className="font-semibold text-clinic">{result.cbdFloor}%</span>
             </div>
-            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-teal-300 to-teal-500 rounded-full transition-all duration-700"
-                style={{ width: `${(result.cbdFloor / 20) * 100}%` }}
-              />
+            <div className="h-[3px] bg-rule">
+              <div className="h-full bg-clinic transition-all duration-700"
+                style={{ width: `${(result.cbdFloor / 20) * 100}%` }} />
             </div>
           </div>
         </div>
-        <p className="text-[12px] text-slate-500 leading-relaxed">
+        <p className="text-[12px] leading-relaxed text-ink/55">
           Guidance only. Recommendations are filtered against the THC/CBD limits on
           your licence, not against these figures — bring them to your doctor if you
           think your licensed window should change.
         </p>
       </div>
 
-      {/* Warnings */}
+      {/* Warnings — genuine safety risk, which is what flag is for */}
       {result.warnings.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Safety notes</p>
+          <p className={sectionCls}>Safety notes</p>
           {result.warnings.map((w, i) => (
-            <div key={i} className="flex gap-2.5 items-start bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-              <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-amber-800 leading-relaxed">{w}</p>
+            <div key={i} className="flex items-start gap-2.5 border border-flag/40 border-l-2 border-l-flag bg-flag/5 px-3 py-2.5">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-flag" />
+              <p className="text-[12px] leading-relaxed text-flag">{w}</p>
             </div>
           ))}
         </div>
@@ -283,35 +287,33 @@ const ResultPanel = ({ result, method }: { result: DosageResult; method: Consump
 
       {/* Tips */}
       <div className="space-y-2">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Practical tips</p>
-        <div className="bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-100">
+        <p className={sectionCls}>Practical tips</p>
+        <div className="divide-y divide-rule border border-rule bg-white">
           {result.tips.map((tip, i) => (
-            <div key={i} className="flex gap-2.5 items-start px-3 py-2.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-slate-600 leading-relaxed">{tip}</p>
+            <div key={i} className="flex items-start gap-2.5 px-3 py-2.5">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/40" />
+              <p className="text-[12px] leading-relaxed text-ink/65">{tip}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Titration schedule */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-          Titration schedule
-        </p>
+      <div className="border border-rule bg-white p-4">
+        <p className={`${sectionCls} mb-3`}>Titration schedule</p>
         <div className="relative">
-          <div className="absolute left-3.5 top-0 bottom-0 w-px bg-slate-200" />
+          <div className="absolute bottom-0 left-[3px] top-0 w-px bg-rule" />
           {[
-            { week: "Week 1",    dose: result.startDose,          note: "Baseline — observe effects carefully" },
+            { week: "Week 1",    dose: result.startDose,            note: "Baseline — observe effects carefully" },
             { week: "Week 2–3",  dose: `+ ${result.titrationStep}`, note: `Only if week 1 was well tolerated` },
-            { week: "Ongoing",   dose: "Adjust with physician",   note: "Review every 4–8 weeks" },
+            { week: "Ongoing",   dose: "Adjust with physician",     note: "Review every 4–8 weeks" },
           ].map(({ week, dose, note }, i) => (
-            <div key={i} className="flex gap-4 mb-3 last:mb-0 relative pl-8">
-              <div className="absolute left-2.5 top-1 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white ring-1 ring-emerald-300" />
+            <div key={i} className="relative mb-3 flex gap-4 pl-6 last:mb-0">
+              <span className="absolute left-0 top-1.5 h-[7px] w-[7px] bg-ink" />
               <div>
-                <p className="text-[11px] font-semibold text-slate-500">{week}</p>
-                <p className="text-[13px] font-semibold text-slate-800">{dose}</p>
-                <p className="text-[11px] text-slate-400">{note}</p>
+                <p className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/45">{week}</p>
+                <p className="font-data text-[13px] font-semibold text-ink">{dose}</p>
+                <p className="text-[11px] text-ink/45">{note}</p>
               </div>
             </div>
           ))}
@@ -322,32 +324,31 @@ const ResultPanel = ({ result, method }: { result: DosageResult; method: Consump
       <div className="grid grid-cols-2 gap-3 pt-1">
         <button
           onClick={() => navigate("/recommendations")}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold rounded-xl transition-colors"
+          className="flex h-10 items-center justify-center gap-2 bg-ink font-data text-[10px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85"
         >
-          <Leaf className="h-4 w-4" />
+          <Leaf className="h-3.5 w-3.5" />
           Find matching strains
-          <ArrowRight className="h-3.5 w-3.5" />
+          <ArrowRight className="h-3 w-3" />
         </button>
         <button
           onClick={() => navigate("/info")}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[13px] font-semibold rounded-xl transition-colors"
+          className="flex h-10 items-center justify-center gap-2 border border-rule bg-white font-data text-[10px] uppercase tracking-[0.12em] text-ink/65 transition-colors hover:border-ink/35 hover:text-ink"
         >
-          <BookOpen className="h-4 w-4" />
+          <BookOpen className="h-3.5 w-3.5" />
           Learn more
         </button>
       </div>
 
       {/* Disclaimer */}
-      <div className="flex gap-2.5 items-start bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
-        <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-slate-500 leading-relaxed">
+      <div className="flex items-start gap-2.5 border border-rule bg-white px-3 py-3">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/35" />
+        <p className="text-[11px] leading-relaxed text-ink/50">
           This calculator provides evidence-based starting point guidance only. Individual response to cannabis varies widely. Always discuss with your prescribing physician before adjusting your treatment plan.
         </p>
       </div>
     </div>
   );
 };
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 const DosageCalculatorPage = () => {
   const navigate = useNavigate();
@@ -395,80 +396,79 @@ const DosageCalculatorPage = () => {
     setAge(""); setHasAnxiety(false); setHasHeart(false);
     setResult(null); setErrors({});
   };
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-2 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-2xl py-2 animate-in fade-in duration-500">
 
-      {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-1.5 bg-teal-50 text-teal-700 border border-teal-100 text-[11px] font-semibold rounded-full px-3 py-1 mb-3 uppercase tracking-wide">
-          <Scale className="h-3 w-3" />
-          Dosage calculator
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-1.5">
+      {/* ── MASTHEAD ─────────────────────────────────────────────────────── */}
+      <header className="mb-6 border-b-2 border-ink pb-5">
+        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+          Dosage · guidance only
+        </p>
+        <h1 className="mt-2 flex items-center gap-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+          <Scale className="h-5 w-5 shrink-0 text-ink/40" />
           Starting dose estimator
         </h1>
-        <p className="text-[14px] text-slate-500 leading-relaxed max-w-lg">
+        <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-ink/50">
           Evidence-based starting doses tailored to your body weight, experience level, and consumption method.
         </p>
-      </div>
+      </header>
 
-      {/* Form card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-6">
+      <div className="space-y-6">
+
+      {/* Form */}
+      <div className="space-y-6 border border-rule bg-white p-5">
 
         {/* Weight + Age */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
-              <Scale className="h-3.5 w-3.5 text-slate-400" /> Body weight (kg)
+            <label className={labelCls}>
+              <Scale className="h-3 w-3 text-ink/35" /> Body weight (kg)
             </label>
             <input
               type="number" min="30" max="200" placeholder="e.g. 72"
               value={weight}
               onChange={(e) => { setWeight(e.target.value); setResult(null); }}
-              className={`w-full h-10 px-3 rounded-xl border text-[14px] outline-none transition-colors focus:ring-2 focus:ring-emerald-400/40 ${errors.weight ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50 focus:bg-white"}`}
+              className={`${fieldCls} ${errors.weight ? "border-flag bg-flag/5" : "border-rule bg-white"}`}
             />
-            {errors.weight && <p className="text-[11px] text-red-500">{errors.weight}</p>}
+            {errors.weight && <p className="font-data text-[10px] uppercase tracking-[0.1em] text-flag">{errors.weight}</p>}
           </div>
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">
-              Age
-            </label>
+            <label className={labelCls}>Age</label>
             <input
               type="number" min="18" max="100" placeholder="e.g. 45"
               value={age}
               onChange={(e) => { setAge(e.target.value); setResult(null); }}
-              className={`w-full h-10 px-3 rounded-xl border text-[14px] outline-none transition-colors focus:ring-2 focus:ring-emerald-400/40 ${errors.age ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50 focus:bg-white"}`}
+              className={`${fieldCls} ${errors.age ? "border-flag bg-flag/5" : "border-rule bg-white"}`}
             />
-            {errors.age && <p className="text-[11px] text-red-500">{errors.age}</p>}
+            {errors.age && <p className="font-data text-[10px] uppercase tracking-[0.1em] text-flag">{errors.age}</p>}
           </div>
         </div>
 
         {/* Experience level */}
         <div className="space-y-2">
-          <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5 text-slate-400" /> Prior cannabis experience
+          <label className={labelCls}>
+            <TrendingUp className="h-3 w-3 text-ink/35" /> Prior cannabis experience
           </label>
-          {errors.experience && <p className="text-[11px] text-red-500">{errors.experience}</p>}
+          {errors.experience && <p className="font-data text-[10px] uppercase tracking-[0.1em] text-flag">{errors.experience}</p>}
           <div className="grid grid-cols-2 gap-2">
             {EXPERIENCE_OPTS.map((opt) => (
               <button
                 key={opt.id}
                 onClick={() => { setExperience(opt.id); setResult(null); }}
-                className={`flex items-start gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
+                className={`flex items-start gap-2.5 border p-3 text-left transition-colors ${
                   experience === opt.id
-                    ? opt.color + " border-current shadow-sm"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    ? "border-ink bg-ink text-paper"
+                    : "border-rule bg-white text-ink/65 hover:border-ink/35"
                 }`}
               >
                 {experience === opt.id
-                  ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-                  : <div className="w-4 h-4 rounded-full border-2 border-current opacity-30 shrink-0 mt-0.5" />
+                  ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  : <span className="mt-0.5 h-4 w-4 shrink-0 border border-rule" />
                 }
-                <div>
-                  <p className="text-[13px] font-semibold leading-tight">{opt.label}</p>
-                  <p className="text-[11px] opacity-70 mt-0.5">{opt.sub}</p>
-                </div>
+                <span>
+                  <span className="block text-[13px] font-semibold leading-tight">{opt.label}</span>
+                  <span className="mt-0.5 block text-[11px] opacity-70">{opt.sub}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -476,10 +476,10 @@ const DosageCalculatorPage = () => {
 
         {/* Consumption method */}
         <div className="space-y-2">
-          <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
-            <Wind className="h-3.5 w-3.5 text-slate-400" /> Consumption method
+          <label className={labelCls}>
+            <Wind className="h-3 w-3 text-ink/35" /> Consumption method
           </label>
-          {errors.method && <p className="text-[11px] text-red-500">{errors.method}</p>}
+          {errors.method && <p className="font-data text-[10px] uppercase tracking-[0.1em] text-flag">{errors.method}</p>}
           <div className="grid grid-cols-3 gap-2">
             {METHODS.map((m) => {
               const Icon = m.icon;
@@ -488,31 +488,33 @@ const DosageCalculatorPage = () => {
                 <button
                   key={m.id}
                   onClick={() => { setMethod(m.id); setResult(null); }}
-                  className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all ${
+                  className={`relative flex flex-col items-center gap-1.5 border p-3 text-center transition-colors ${
                     isActive
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      ? "border-ink bg-ink text-paper"
+                      : "border-rule bg-white text-ink/65 hover:border-ink/35"
                   }`}
                 >
                   {m.badge && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                    <span className={`absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap border px-1.5 py-0.5 font-data text-[8px] uppercase tracking-[0.1em] ${
+                      isActive ? "border-paper/40 bg-ink text-paper" : "border-rule bg-white text-ink/50"
+                    }`}>
                       {m.badge}
                     </span>
                   )}
-                  <Icon className={`h-5 w-5 ${isActive ? "text-emerald-600" : "text-slate-400"}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? "text-paper" : "text-ink/35"}`} />
                   <p className="text-[12px] font-semibold leading-tight">{m.label}</p>
-                  <p className="text-[10px] opacity-60 leading-tight">{m.sub}</p>
+                  <p className="text-[10px] leading-tight opacity-60">{m.sub}</p>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Condition flags */}
+        {/* Condition flags — selecting one tightens the THC cap, so flag */}
         <div className="space-y-2">
-          <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5 text-slate-400" /> Medical considerations
-            <span className="font-normal text-slate-400 normal-case">(optional)</span>
+          <label className={labelCls}>
+            <ShieldCheck className="h-3 w-3 text-ink/35" /> Medical considerations
+            <span className="font-normal normal-case tracking-normal text-ink/30">optional</span>
           </label>
           <div className="flex flex-col gap-2">
             {[
@@ -522,19 +524,21 @@ const DosageCalculatorPage = () => {
               <button
                 key={id}
                 onClick={() => { set(!val); setResult(null); }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                className={`flex items-center gap-3 border px-4 py-3 text-left transition-colors ${
                   val
-                    ? "border-rose-300 bg-rose-50 text-rose-800"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    ? "border-flag/50 bg-flag/5 text-flag"
+                    : "border-rule bg-white text-ink/65 hover:border-ink/35"
                 }`}
               >
-                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${val ? "bg-rose-500 border-rose-500" : "border-slate-300"}`}>
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${
+                  val ? "border-flag bg-flag" : "border-rule"
+                }`}>
                   {val && <CheckCircle2 className="h-3 w-3 text-white" />}
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold">{label}</p>
-                  <p className="text-[11px] opacity-60">{sub}</p>
-                </div>
+                </span>
+                <span>
+                  <span className="block text-[13px] font-semibold">{label}</span>
+                  <span className="block text-[11px] opacity-60">{sub}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -544,34 +548,37 @@ const DosageCalculatorPage = () => {
         <button
           onClick={handleCalculate}
           disabled={!canCalculate}
-          className={`w-full h-12 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`flex h-11 w-full items-center justify-center gap-2 font-data text-[11px] uppercase tracking-[0.12em] transition-colors ${
             canCalculate
-              ? "bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm hover:shadow"
-              : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              ? "bg-ink text-paper hover:bg-ink/85"
+              : "cursor-not-allowed bg-rule/50 text-ink/30"
           }`}
         >
-          <Scale className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+          <Scale className="h-3.5 w-3.5" />
           Calculate starting dose
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
 
       {/* Result */}
       {result && (
         <div ref={resultRef}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[16px] font-bold text-slate-900">Your personalised dose</h2>
+          <div className="mb-4 flex items-center justify-between border-b border-rule pb-2">
+            <h2 className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">
+              Your personalised dose
+            </h2>
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-700 transition-colors"
+              className="flex items-center gap-1.5 font-data text-[10px] uppercase tracking-[0.1em] text-ink/45 transition-colors hover:text-ink"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3 w-3" />
               Reset
             </button>
           </div>
           <ResultPanel result={result} method={method as ConsumptionMethod} />
         </div>
       )}
+      </div>
     </div>
   );
 };
