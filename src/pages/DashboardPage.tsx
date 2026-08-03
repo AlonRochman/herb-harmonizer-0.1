@@ -5,7 +5,9 @@ import LoadError from "@/components/LoadError";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   Activity, Leaf, Loader2, TrendingUp,
   ClipboardList, MessageSquare, Sparkles,
@@ -20,9 +22,6 @@ import {
 // ─── Status config ────────────────────────────────────────────────────────────
 type RecStatus = "pending" | "approved" | "rejected";
 
-// Review state is information, so it is allowed colour — but not resin or
-// clinic, which mean THC and CBD and nothing else. An undecided item is quiet
-// ink, a decision is full-weight ink, and only the negative verdict takes flag.
 const STATUS_CONFIG: Record<RecStatus, {
   label: string; icon: typeof Clock;
   pill: string; dot: string; border: string;
@@ -30,23 +29,23 @@ const STATUS_CONFIG: Record<RecStatus, {
   pending:  {
     label: "Awaiting review",
     icon: Clock,
-    pill:   "border-rule text-ink/55",
-    dot:    "bg-ink/25",
-    border: "border-rule",
+    pill:   "bg-amber-50  text-amber-700  border-amber-200",
+    dot:    "bg-amber-400",
+    border: "border-amber-200",
   },
   approved: {
     label: "Approved by doctor",
     icon: CheckCircle2,
-    pill:   "border-ink/25 text-ink",
-    dot:    "bg-ink",
-    border: "border-ink/25",
+    pill:   "bg-emerald-50 text-emerald-700 border-emerald-200",
+    dot:    "bg-emerald-500",
+    border: "border-emerald-200",
   },
   rejected: {
     label: "Not recommended",
     icon: XCircle,
-    pill:   "border-flag/35 text-flag",
-    dot:    "bg-flag",
-    border: "border-flag/35",
+    pill:   "bg-red-50    text-red-700    border-red-200",
+    dot:    "bg-red-400",
+    border: "border-red-200",
   },
 };
 
@@ -54,7 +53,7 @@ const StatusBadge = ({ status }: { status: RecStatus }) => {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-data text-[10px] uppercase tracking-[0.1em] ${cfg.pill}`}>
+    <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${cfg.pill}`}>
       <Icon className="h-3 w-3" />
       {cfg.label}
     </span>
@@ -62,24 +61,31 @@ const StatusBadge = ({ status }: { status: RecStatus }) => {
 };
 
 // ─── Metric card ──────────────────────────────────────────────────────────────
-// An instrument readout, not a stat card. The old version carried an
-// emerald/blue/amber accent per metric, which encoded nothing — four colours
-// for four counts. Values are font-data because they are clinical figures.
 const MetricCard = ({
-  label, value, sub, icon: Icon,
+  label, value, sub, icon: Icon, accent = "emerald",
 }: {
   label: string; value: string | number; sub?: string;
-  icon: React.ElementType;
-}) => (
-  <div className="border border-rule bg-white p-3.5">
-    <div className="flex items-center gap-1.5 text-ink/40">
-      <Icon className="h-3 w-3 shrink-0" />
-      <p className="font-data text-[10px] uppercase tracking-[0.14em]">{label}</p>
+  icon: React.ElementType; accent?: string;
+}) => {
+  const colors: Record<string, string> = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    blue:    "bg-blue-50 text-blue-700",
+    amber:   "bg-amber-50 text-amber-700",
+    red:     "bg-red-50 text-red-600",
+  };
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-start gap-3">
+      <div className={`p-2 rounded-lg ${colors[accent] ?? colors.emerald}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+        <p className="text-2xl font-semibold text-slate-900 leading-none">{value}</p>
+        {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
+      </div>
     </div>
-    <p className="mt-2 font-data text-[22px] font-semibold leading-none text-ink">{value}</p>
-    {sub && <p className="mt-1 font-data text-[10px] text-ink/40">{sub}</p>}
-  </div>
-);
+  );
+};
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 const EmptyState = ({
@@ -88,39 +94,19 @@ const EmptyState = ({
   icon: React.ElementType; title: string; desc: string;
   cta?: string; onCta?: () => void;
 }) => (
-  <div className="flex flex-col items-center justify-center py-12 text-center">
-    <Icon className="h-5 w-5 text-ink/25 mb-3" />
-    <p className="text-[14px] font-medium text-ink/80 mb-1">{title}</p>
-    <p className="text-[13px] text-ink/45 max-w-xs mb-4">{desc}</p>
+  <div className="flex flex-col items-center justify-center py-14 text-center">
+    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+      <Icon className="h-5 w-5 text-slate-400" />
+    </div>
+    <p className="text-[14px] font-medium text-slate-700 mb-1">{title}</p>
+    <p className="text-[13px] text-slate-400 max-w-xs mb-4">{desc}</p>
     {cta && onCta && (
-      <button
-        onClick={onCta}
-        className="border border-ink/25 px-3 py-1.5 font-data text-[11px] uppercase tracking-[0.12em] text-ink transition-colors hover:bg-paper"
-      >
+      <Button size="sm" variant="outline" onClick={onCta}
+        className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
         {cta}
-      </button>
+      </Button>
     )}
   </div>
-);
-
-// ─── Panel ────────────────────────────────────────────────────────────────────
-// Replaces the shadcn Card here: a titled block closed by a hairline rule, so
-// the page reads like the sections of a clinical report rather than a set of
-// floating cards.
-const Panel = ({
-  title, icon: Icon, aside, children,
-}: {
-  title: string; icon?: React.ElementType;
-  aside?: React.ReactNode; children: React.ReactNode;
-}) => (
-  <section className="border border-rule bg-white">
-    <header className="flex items-center gap-2 border-b border-rule px-4 py-2.5">
-      {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-ink/40" />}
-      <h2 className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">{title}</h2>
-      {aside && <div className="ml-auto">{aside}</div>}
-    </header>
-    <div className="p-4">{children}</div>
-  </section>
 );
 
 // ─── Doctor approval card ─────────────────────────────────────────────────────
@@ -144,23 +130,23 @@ const ApprovalCard = ({
   };
 
   return (
-    <div className={`overflow-hidden border bg-white transition-all ${
-      isPending ? "border-ink/30" : STATUS_CONFIG[status].border
+    <div className={`bg-white border rounded-xl overflow-hidden transition-all ${
+      isPending ? "border-amber-200 shadow-sm" : STATUS_CONFIG[status].border
     }`}>
-      {/* Status rule */}
-      <div className={`h-0.5 w-full ${STATUS_CONFIG[status].dot}`} />
+      {/* Status bar */}
+      <div className={`h-1 w-full ${STATUS_CONFIG[status].dot}`} />
 
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            <p className="font-display text-[15px] font-semibold leading-tight text-ink">
+            <p className="text-[14px] font-semibold text-slate-900 leading-tight">
               {rec.strains?.name ?? "Unknown strain"}
             </p>
-            <p className="mt-0.5 font-data text-[10px] text-ink/45">
+            <p className="text-[11px] text-slate-400 mt-0.5">
               {new Date(rec.recommendation_date).toLocaleDateString("en-GB", {
                 day: "2-digit", month: "short", year: "numeric",
-              })} · rule sum {rec.match_score}
+              })} · {rec.match_score}% match
             </p>
           </div>
           <StatusBadge status={status} />
@@ -168,26 +154,32 @@ const ApprovalCard = ({
 
         {/* Strain chips */}
         {rec.strains && (
-          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-data text-[11px]">
-            <span className="text-resin">THC {rec.strains.thc_level}%</span>
-            <span className="text-clinic">CBD {rec.strains.cbd_level}%</span>
+          <div className="flex gap-2 mb-3">
+            <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+              THC {rec.strains.thc_level}%
+            </span>
+            <span className="text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
+              CBD {rec.strains.cbd_level}%
+            </span>
             {rec.strains.category && (
-              <span className="capitalize text-ink/45">{rec.strains.category}</span>
+              <span className="text-[11px] text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 capitalize">
+                {rec.strains.category}
+              </span>
             )}
           </div>
         )}
 
         {/* Algorithm explanation */}
         {rec.explanation && (
-          <p className="mb-3 border-l-2 border-ink/20 bg-paper px-3 py-2 text-[12px] leading-relaxed text-ink/65">
+          <p className="text-[12px] text-slate-500 bg-slate-50 rounded-lg px-3 py-2 mb-3 leading-relaxed border-l-2 border-emerald-300">
             {rec.explanation}
           </p>
         )}
 
         {/* Review note (if already decided) */}
         {!isPending && rec.review_note && (
-          <div className={`mb-3 flex items-start gap-2 border-l-2 px-3 py-2 text-[12px] ${
-            status === "approved" ? "border-ink/30 bg-paper text-ink/75" : "border-flag/40 bg-flag/5 text-flag"
+          <div className={`flex gap-2 items-start rounded-lg px-3 py-2 mb-3 text-[12px] ${
+            status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
           }`}>
             <Stethoscope className="h-3.5 w-3.5 shrink-0 mt-0.5" />
             <span>{rec.review_note}</span>
@@ -200,7 +192,7 @@ const ApprovalCard = ({
             {/* Expandable note area */}
             <button
               onClick={() => setExpanded((v) => !v)}
-              className="mb-2 flex items-center gap-1 font-data text-[10px] uppercase tracking-[0.1em] text-ink/40 transition-colors hover:text-ink/70"
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 mb-2 transition-colors"
             >
               {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               {expanded ? "Hide note" : "Add clinical note (optional)"}
@@ -212,7 +204,7 @@ const ApprovalCard = ({
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Clinical reasoning, dosage adjustment, contraindication…"
                 rows={2}
-                className="mb-3 w-full resize-none border border-rule bg-paper px-3 py-2 text-[12px] outline-none focus:border-ink/40 focus:ring-1 focus:ring-ink/20"
+                className="w-full text-[12px] bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-400/40 resize-none mb-3"
               />
             )}
 
@@ -220,7 +212,7 @@ const ApprovalCard = ({
               <button
                 onClick={() => handleAction("approved")}
                 disabled={!!saving}
-                className="flex h-9 flex-1 items-center justify-center gap-1.5 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[13px] font-semibold transition-colors disabled:opacity-60"
               >
                 {saving === "approved"
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -231,7 +223,7 @@ const ApprovalCard = ({
               <button
                 onClick={() => handleAction("rejected")}
                 disabled={!!saving}
-                className="flex h-9 flex-1 items-center justify-center gap-1.5 border border-flag/40 bg-white font-data text-[11px] uppercase tracking-[0.12em] text-flag transition-colors hover:bg-flag/5 disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-white border-2 border-red-200 hover:bg-red-50 text-red-600 text-[13px] font-semibold transition-colors disabled:opacity-60"
               >
                 {saving === "rejected"
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -251,26 +243,26 @@ const ApprovalCard = ({
 const PatientRecRow = ({ rec }: { rec: any }) => {
   const status: RecStatus = rec.status ?? "pending";
   return (
-    <div className={`flex items-center justify-between gap-4 border-b border-rule py-3 last:border-0 ${
-      status === "approved" ? "-mx-4 bg-paper px-4" : ""
+    <div className={`flex items-center justify-between py-3 gap-4 border-b border-slate-100 last:border-0 ${
+      status === "approved" ? "bg-emerald-50/30 -mx-4 px-4 rounded-lg" : ""
     }`}>
       <div className="min-w-0">
-        <p className="truncate font-display text-[13px] font-semibold text-ink">
+        <p className="text-[13px] font-semibold text-slate-800 truncate">
           {rec.strains?.name}
         </p>
-        <p className="mt-0.5 line-clamp-1 text-[11px] text-ink/45">
+        <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
           {rec.explanation}
         </p>
         {rec.review_note && (
-          <p className="mt-1 flex items-center gap-1 text-[11px] text-ink/60">
+          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
             <Stethoscope className="h-3 w-3 shrink-0" />
             Doctor note: {rec.review_note}
           </p>
         )}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5">
-        <span className="font-data text-[11px] text-ink/55">
-          {rec.match_score}
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+          {rec.match_score}%
         </span>
         <StatusBadge status={status} />
       </div>
@@ -398,61 +390,40 @@ const DashboardPage = () => {
   const approvedCount  = recommendations.filter((r) => r.status === "approved").length;
 
   if (isLoading) return (
-    <div className="flex h-64 items-center justify-center">
-      <Loader2 className="h-5 w-5 animate-spin text-ink/40" />
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
     </div>
   );
 
   return (
-    <div className="mx-auto max-w-5xl py-2 animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
 
-      {/* Masthead — same clinical-report header as the recommendations page */}
-      <header className="mb-6 border-b-2 border-ink pb-5">
-        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
-          {isDoctor ? "Clinical review · rule-based" : "Treatment record"}
-        </p>
-        <h1 className="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
-          {isDoctor ? "Recommendations for review" : "My treatment record"}
-        </h1>
-
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 font-data text-[11px]">
-            {isDoctor && (
-              <div className="flex gap-2">
-                <dt className="text-ink/40">Awaiting review</dt>
-                <dd className={pendingCount > 0 ? "text-ink" : "text-ink/60"}>{pendingCount}</dd>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <dt className="text-ink/40">Sessions</dt>
-              <dd className="text-ink/75">{usageHistory.length}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-ink/40">Mean efficacy</dt>
-              <dd className="text-ink/75">{avgScore} / 5</dd>
-            </div>
-          </dl>
-
-          {isDoctor && (
-            <div className="w-full sm:w-64">
-              <Select value={selectedPatientId} onValueChange={loadAnalytics}>
-                <SelectTrigger className="rounded-none border-rule bg-white font-data text-[11px]">
-                  <SelectValue placeholder="Select a patient…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.users?.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">
+            {isDoctor ? "Clinical dashboard" : "My dashboard"}
+          </h1>
+          <p className="text-sm text-slate-400 mt-0.5">Treatment efficacy tracking</p>
         </div>
-      </header>
 
-      <div className="space-y-6">
+        {isDoctor && (
+          <div className="w-full sm:w-64">
+            <Select value={selectedPatientId} onValueChange={loadAnalytics}>
+              <SelectTrigger className="bg-white text-[13px]">
+                <SelectValue placeholder="Select a patient…" />
+              </SelectTrigger>
+              <SelectContent>
+                {patients.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.users?.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       {loadError && (
         <LoadError what={loadError} onRetry={() => { setIsLoading(true); setReloadKey((k) => k + 1); }} />
@@ -460,37 +431,43 @@ const DashboardPage = () => {
 
       {/* Doctor: no patient selected */}
       {isDoctor && !selectedPatientId ? (
-        <div className="border border-rule bg-white">
-          <EmptyState
-            icon={Activity}
-            title="Select a patient"
-            desc="Choose a patient from the dropdown above to review and approve their recommendations."
-          />
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Activity}
+              title="Select a patient"
+              desc="Choose a patient from the dropdown above to review and approve their recommendations."
+            />
+          </CardContent>
+        </Card>
       ) : (
         <>
           {/* Metric cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricCard icon={ClipboardList} label="Usage logs"      value={usageHistory.length} />
-            <MetricCard icon={Sparkles}      label="Recommendations" value={recommendations.length} />
-            <MetricCard icon={TrendingUp}    label="Mean efficacy"   value={avgScore} sub="out of 5" />
+            <MetricCard icon={ClipboardList} label="Usage logs"      value={usageHistory.length}    accent="emerald" />
+            <MetricCard icon={Sparkles}      label="Recommendations" value={recommendations.length} accent="blue"    />
+            <MetricCard icon={TrendingUp}    label="Avg efficacy"    value={avgScore} sub="out of 5" accent="amber"  />
             {isDoctor
-              ? <MetricCard icon={Clock}        label="Awaiting review" value={pendingCount} />
-              : <MetricCard icon={CheckCircle2} label="Approved"        value={approvedCount} />
+              ? <MetricCard icon={Clock}     label="Pending review"  value={pendingCount} accent={pendingCount > 0 ? "amber" : "emerald"} />
+              : <MetricCard icon={CheckCircle2} label="Approved"     value={approvedCount} accent="emerald" />
             }
           </div>
 
           {/* ── DOCTOR: Approval queue ─────────────────────────────────── */}
           {isDoctor && (
-            <Panel
-              title="Recommendation review queue"
-              icon={Stethoscope}
-              aside={pendingCount > 0 ? (
-                <span className="border border-ink/25 px-2 py-0.5 font-data text-[10px] uppercase tracking-[0.1em] text-ink">
-                  {pendingCount} awaiting
-                </span>
-              ) : undefined}
-            >
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-[14px] font-semibold text-slate-700 flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-blue-600" />
+                  Recommendation review queue
+                  {pendingCount > 0 && (
+                    <span className="ml-auto text-[11px] font-bold bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
                 {recommendations.length === 0 ? (
                   <EmptyState
                     icon={Sparkles}
@@ -517,33 +494,35 @@ const DashboardPage = () => {
                     }
                   </div>
                 )}
-            </Panel>
+              </CardContent>
+            </Card>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid lg:grid-cols-3 gap-6">
 
             {/* Efficacy chart */}
-            <div className="lg:col-span-2">
-              <Panel title="Efficacy trend" icon={TrendingUp}>
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[14px] font-medium text-slate-700 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" /> Efficacy trend
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
                 {chartData.length > 0 ? (
                   <div className="h-52">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                         <defs>
                           <linearGradient id="eff" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%"  stopColor="#14201C" stopOpacity={0.12} />
-                            <stop offset="95%" stopColor="#14201C" stopOpacity={0}    />
+                            <stop offset="5%"  stopColor="#059669" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#059669" stopOpacity={0}    />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="2 3" vertical={false} stroke="#D8DCD6" />
-                        <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false}
-                          tick={{ fill: "#14201C", opacity: 0.45, fontFamily: "IBM Plex Mono, monospace" }} />
-                        <YAxis domain={[0, 5]} fontSize={10} tickLine={false} axisLine={false}
-                          tick={{ fill: "#14201C", opacity: 0.45, fontFamily: "IBM Plex Mono, monospace" }} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: 0, border: "1px solid #D8DCD6", fontSize: 11, fontFamily: "IBM Plex Mono, monospace" }}
-                          labelStyle={{ color: "#14201C" }} />
-                        <Area type="monotone" dataKey="score" stroke="#14201C" strokeWidth={1.5} fill="url(#eff)" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
+                        <YAxis domain={[0, 5]} fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
+                        <Tooltip contentStyle={{ borderRadius: "8px", border: "0.5px solid #e2e8f0", fontSize: 12 }} labelStyle={{ color: "#475569" }} />
+                        <Area type="monotone" dataKey="score" stroke="#059669" strokeWidth={2} fill="url(#eff)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -556,63 +535,72 @@ const DashboardPage = () => {
                     onCta={() => navigate("/feedback")}
                   />
                 )}
-              </Panel>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Quick actions */}
             <div className="space-y-3">
-              <Panel title="Quick actions">
-                <div className="space-y-2">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-[14px] font-medium text-slate-700">Quick actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
                   {!isDoctor && (
                     <button onClick={() => navigate("/recommendations")}
-                      className="flex w-full items-center gap-3 border border-rule px-3 py-2.5 text-left transition-colors hover:bg-paper">
-                      <Sparkles className="h-4 w-4 shrink-0 text-ink/45" />
-                      <span className="text-[13px] font-medium text-ink/80">View recommendations</span>
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-left">
+                      <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="text-[13px] font-medium text-slate-700">View recommendations</span>
                     </button>
                   )}
                   <button onClick={() => navigate("/feedback")}
-                    className="flex w-full items-center gap-3 border border-rule px-3 py-2.5 text-left transition-colors hover:bg-paper">
-                    <MessageSquare className="h-4 w-4 shrink-0 text-ink/45" />
-                    <span className="text-[13px] font-medium text-ink/80">
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-blue-50 hover:border-blue-200 transition-colors text-left">
+                    <MessageSquare className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span className="text-[13px] font-medium text-slate-700">
                       {isDoctor ? "View patient feedback" : "Log feedback"}
                     </span>
                   </button>
                   <button onClick={() => navigate("/patient-input")}
-                    className="flex w-full items-center gap-3 border border-rule px-3 py-2.5 text-left transition-colors hover:bg-paper">
-                    <ClipboardList className="h-4 w-4 shrink-0 text-ink/45" />
-                    <span className="text-[13px] font-medium text-ink/80">
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-amber-50 hover:border-amber-200 transition-colors text-left">
+                    <ClipboardList className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span className="text-[13px] font-medium text-slate-700">
                       {isDoctor ? "Patient profiling" : "Update profile"}
                     </span>
                   </button>
-                </div>
-              </Panel>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
           {/* ── PATIENT: Recommendations with status badges ─────────────── */}
           {/* ── DOCTOR: shown as sub-list after main queue ─────────────── */}
-          <Panel
-            title={isDoctor ? "All recommendations" : "My recommendations"}
-            icon={Leaf}
-            aside={!isDoctor && (approvedCount > 0 || pendingCount > 0) ? (
-              <div className="flex items-center gap-3 font-data text-[10px] uppercase tracking-[0.1em]">
-                {approvedCount > 0 && <span className="text-ink">{approvedCount} approved</span>}
-                {pendingCount > 0 && (
-                  <span className="flex items-center gap-1 text-ink/55">
-                    <AlertCircle className="h-3 w-3" /> {pendingCount} awaiting review
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[14px] font-medium text-slate-700 flex items-center gap-2">
+                <Leaf className="h-4 w-4 text-emerald-600" />
+                {isDoctor ? "All recommendations" : "My recommendations"}
+                {/* Patient: approved badge hint */}
+                {!isDoctor && approvedCount > 0 && (
+                  <span className="ml-auto text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    {approvedCount} approved
                   </span>
                 )}
-              </div>
-            ) : undefined}
-          >
+                {/* Patient: pending hint */}
+                {!isDoctor && pendingCount > 0 && (
+                  <span className="ml-2 text-[11px] font-medium text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" /> {pendingCount} pending review
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               {recommendations.length > 0 ? (
-                <div className="divide-y divide-rule">
+                <div className="divide-y divide-slate-100">
                   {recommendations.map((rec) =>
                     isDoctor
                       ? (
                         // Doctor: compact list (full cards are in the queue above)
-                        <div key={rec.id} className="flex items-center justify-between gap-4 py-3">
-                          <p className="truncate font-display text-[13px] font-medium text-ink/85">
+                        <div key={rec.id} className="flex items-center justify-between py-3 gap-4">
+                          <p className="text-[13px] font-medium text-slate-700 truncate">
                             {rec.strains?.name}
                           </p>
                           <StatusBadge status={rec.status ?? "pending"} />
@@ -630,10 +618,10 @@ const DashboardPage = () => {
                   onCta={() => navigate("/recommendations")}
                 />
               )}
-          </Panel>
+            </CardContent>
+          </Card>
         </>
       )}
-      </div>
     </div>
   );
 };

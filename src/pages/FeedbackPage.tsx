@@ -24,11 +24,11 @@ const SIDE_EFFECTS = [
 ];
 
 const SCORE_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "No relief",       color: "text-flag"    },
-  2: { label: "Slight relief",   color: "text-flag/75" },
-  3: { label: "Moderate relief", color: "text-ink/55"  },
-  4: { label: "Significant",     color: "text-ink/75"  },
-  5: { label: "Complete relief", color: "text-ink"     },
+  1: { label: "No relief",       color: "text-red-600"     },
+  2: { label: "Slight relief",   color: "text-orange-500"  },
+  3: { label: "Moderate relief", color: "text-amber-600"   },
+  4: { label: "Significant",     color: "text-teal-600"    },
+  5: { label: "Complete relief", color: "text-emerald-600" },
 };
 
 // ─── Score selector ───────────────────────────────────────────────────────────
@@ -37,18 +37,18 @@ const ScoreSelector = ({ value, onChange }: { value: number; onChange: (v: numbe
     <div className="flex gap-2">
       {[1, 2, 3, 4, 5].map((n) => (
         <button key={n} type="button" onClick={() => onChange(n)}
-          className={`relative flex h-12 w-12 flex-col items-center justify-center gap-0.5 border transition-all ${
+          className={`relative w-12 h-12 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
             value === n
-              ? "border-ink bg-ink text-paper"
-              : "border-rule bg-white text-ink/40 hover:border-ink/40 hover:text-ink/70"
+              ? "bg-emerald-700 text-white border-emerald-700 shadow-sm scale-105"
+              : "bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-600"
           }`}>
-          <Star className={`h-4 w-4 ${value === n ? "fill-paper" : "fill-none"}`} />
-          <span className="font-data text-[10px] font-semibold leading-none">{n}</span>
+          <Star className={`h-4 w-4 ${value === n ? "fill-white" : "fill-none"}`} />
+          <span className="text-[10px] font-semibold leading-none">{n}</span>
         </button>
       ))}
     </div>
     {value > 0 && (
-      <p className={`font-data text-[11px] uppercase tracking-[0.1em] ${SCORE_LABELS[value].color}`}>
+      <p className={`text-[13px] font-medium ${SCORE_LABELS[value].color}`}>
         {SCORE_LABELS[value].label}
       </p>
     )}
@@ -68,12 +68,12 @@ const SideEffectPicker = ({ selected, onChange }: { selected: string[]; onChange
         const active = selected.includes(se);
         return (
           <button key={se} type="button" onClick={() => toggle(se)}
-            className={`border px-3 py-1.5 text-[12px] font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
               active
                 ? se === "None"
-                  ? "border-ink/30 bg-paper text-ink"
-                  : "border-flag/40 bg-flag/5 text-flag"
-                : "border-rule bg-white text-ink/55 hover:border-ink/30"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                  : "bg-rose-50 text-rose-700 border-rose-300"
+                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
             }`}>{se}
           </button>
         );
@@ -86,7 +86,7 @@ const SideEffectPicker = ({ selected, onChange }: { selected: string[]; onChange
 const StarRow = ({ score }: { score: number }) => (
   <div className="flex gap-0.5">
     {[1,2,3,4,5].map((i) => (
-      <Star key={i} className={`h-3.5 w-3.5 ${i <= score ? "text-ink fill-ink" : "text-rule fill-rule"}`} />
+      <Star key={i} className={`h-3.5 w-3.5 ${i <= score ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
     ))}
   </div>
 );
@@ -184,16 +184,16 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
 
   if (done) return (
     <div className="flex flex-col items-center justify-center h-48 gap-4 animate-in fade-in duration-500">
-      <CheckCircle className="h-7 w-7 text-ink" />
-      <p className="font-display text-[15px] font-semibold text-ink">Feedback saved</p>
-      <p className="font-data text-[11px] uppercase tracking-[0.1em] text-ink/45">
-        Returning to your record…
-      </p>
+      <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
+        <CheckCircle className="h-7 w-7 text-emerald-600" />
+      </div>
+      <p className="text-[15px] font-semibold text-slate-800">Feedback saved!</p>
+      <p className="text-[13px] text-slate-400">Redirecting to your dashboard…</p>
     </div>
   );
 
   if (isLoading) return (
-    <div className="flex items-center gap-2 py-8 font-data text-[11px] uppercase tracking-[0.1em] text-ink/45">
+    <div className="flex items-center gap-2 text-slate-400 text-sm py-8">
       <Loader2 className="h-4 w-4 animate-spin" /> Loading your sessions…
     </div>
   );
@@ -201,9 +201,9 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
   return (
     <div className="space-y-5">
       {errorMsg && (
-        <div className="flex items-start gap-2 border-l-2 border-flag/40 bg-flag/5 px-3 py-2 animate-in fade-in duration-200">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
-          <p className="text-[13px] text-flag">{errorMsg}</p>
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+          <p className="text-[13px] text-red-700">{errorMsg}</p>
         </div>
       )}
 
@@ -211,11 +211,11 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
 
       {/* Session picker */}
       <div className="space-y-1.5">
-        <Label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">Treatment session</Label>
+        <Label className="text-[13px] font-semibold">Treatment session</Label>
         <Select value={selectedUsageId} onValueChange={(v) => {
           setSelectedUsageId(v); setScore(0); setSideEffects([]); setComments("");
         }}>
-          <SelectTrigger className="rounded-none border-rule text-[13px]">
+          <SelectTrigger className="text-[13px]">
             <SelectValue placeholder={
               usageRecords.length === 0
                 ? "No unrated sessions — log usage first"
@@ -234,9 +234,9 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
           </SelectContent>
         </Select>
         {usageRecords.length === 0 && (
-          <p className="mt-1 text-[12px] text-ink/45">
+          <p className="text-[12px] text-slate-400 mt-1">
             Use "Log usage" on the{" "}
-            <button onClick={() => navigate("/recommendations")} className="text-ink underline underline-offset-2">
+            <button onClick={() => navigate("/recommendations")} className="text-emerald-600 underline underline-offset-2">
               Recommendations page
             </button>{" "}
             to record a session first.
@@ -245,39 +245,39 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
       </div>
 
       {selectedUsageId && (
-        <div className="space-y-5 border-t border-rule pt-4 animate-in fade-in slide-in-from-top-1 duration-300">
+        <div className="space-y-5 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-300">
           <div className="space-y-2">
-            <Label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">
-              Effectiveness score <span className="text-flag">*</span>
+            <Label className="text-[13px] font-semibold">
+              Effectiveness score <span className="text-red-400">*</span>
             </Label>
-            <p className="text-[12px] text-ink/45">How well did this session relieve your symptoms?</p>
+            <p className="text-[12px] text-slate-400">How well did this session relieve your symptoms?</p>
             <ScoreSelector value={score} onChange={setScore} />
           </div>
 
           <div className="space-y-2">
-            <Label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">
-              Side effects <span className="text-flag">*</span>
+            <Label className="text-[13px] font-semibold">
+              Side effects <span className="text-red-400">*</span>
             </Label>
             <SideEffectPicker selected={sideEffects} onChange={setSideEffects} />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">
+            <Label className="text-[13px] font-semibold">
               Notes for your doctor{" "}
-              <span className="font-normal text-ink/40">(optional)</span>
+              <span className="text-slate-400 font-normal">(optional)</span>
             </Label>
             <Textarea
               placeholder="How did this session feel overall?"
               value={comments}
               onChange={(e) => setComments(e.target.value)}
-              className="resize-none rounded-none border-rule bg-paper text-[13px]" rows={3}
+              className="text-[13px] resize-none" rows={3}
             />
           </div>
 
           <button
             onClick={handleSubmit}
             disabled={isSaving}
-            className="flex h-11 w-full items-center justify-center gap-2 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-60"
+            className="w-full h-11 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
             {isSaving ? "Saving…" : "Submit feedback"}
@@ -332,7 +332,7 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
   }, [patientId]);
 
   if (loading) return (
-    <div className="flex items-center gap-2 py-8 font-data text-[11px] uppercase tracking-[0.1em] text-ink/45">
+    <div className="flex items-center gap-2 text-slate-400 text-sm py-8">
       <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
     </div>
   );
@@ -340,10 +340,10 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
   if (historyFailed) return <LoadError what="your treatment history" />;
 
   if (history.length === 0) return (
-    <div className="flex flex-col items-center gap-3 py-14 text-ink/45">
-      <History className="h-8 w-8 text-ink/25" />
-      <p className="text-[14px] font-medium text-ink/70">No feedback history yet</p>
-      <p className="max-w-xs text-center text-[13px] text-ink/45">
+    <div className="flex flex-col items-center py-14 text-slate-400 gap-3">
+      <History className="h-10 w-10 opacity-25" />
+      <p className="text-[14px] font-medium text-slate-600">No feedback history yet</p>
+      <p className="text-[13px] text-slate-400 text-center max-w-xs">
         Submit your first feedback using the "Submit" tab after logging a usage session.
       </p>
     </div>
@@ -354,18 +354,16 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
   return (
     <div className="space-y-4">
       {/* Summary bar */}
-      <div className="flex items-center gap-4 border border-rule bg-paper px-4 py-3">
+      <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-3.5 w-3.5 text-ink/40" />
-          <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">Overall average</span>
+          <TrendingUp className="h-4 w-4 text-emerald-600" />
+          <span className="text-[12px] font-semibold text-slate-600">Overall average</span>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 ml-auto">
           <StarRow score={Math.round(avgScore)} />
-          <span className="font-data text-[13px] font-semibold text-ink">{avgScore.toFixed(1)}/5</span>
+          <span className="text-[13px] font-bold text-slate-800">{avgScore.toFixed(1)}/5</span>
         </div>
-        <span className="font-data text-[10px] text-ink/40">
-          {history.length} session{history.length !== 1 ? "s" : ""}
-        </span>
+        <span className="text-[11px] text-slate-400">{history.length} session{history.length !== 1 ? "s" : ""}</span>
       </div>
 
       {/* Cards */}
@@ -373,23 +371,25 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
         const score: number = row.fb.effectiveness_score;
         const scoreCfg = SCORE_LABELS[score];
         const hasSE = row.fb.side_effects && row.fb.side_effects.toLowerCase() !== "none";
-        const borderColor = score >= 4 ? "border-ink/25" : score >= 3 ? "border-rule" : "border-flag/35";
-        const barColor    = score >= 4 ? "bg-ink" : score >= 3 ? "bg-ink/25" : "bg-flag";
+        const borderColor = score >= 4 ? "border-emerald-200" : score >= 3 ? "border-amber-200" : "border-red-200";
+        const barColor = score >= 4 ? "bg-emerald-500" : score >= 3 ? "bg-amber-400" : "bg-red-400";
 
         return (
-          <div key={i} className={`overflow-hidden border bg-white ${borderColor}`}>
-            <div className={`h-0.5 w-full ${barColor}`} />
-            <div className="space-y-3 p-4">
+          <div key={i} className={`bg-white border rounded-xl overflow-hidden ${borderColor}`}>
+            <div className={`h-1 w-full ${barColor}`} />
+            <div className="p-4 space-y-3">
 
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <Leaf className="h-4 w-4 shrink-0 text-ink/35" />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                    <Leaf className="h-4 w-4 text-emerald-600" />
+                  </div>
                   <div>
-                    <p className="font-display text-[14px] font-semibold text-ink">
+                    <p className="text-[14px] font-semibold text-slate-900">
                       {row.strains?.name ?? "Unknown strain"}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1 font-data text-[10px] text-ink/45">
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                       <Clock className="h-3 w-3" />
                       {new Date(row.usage_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                       {row.dosage && ` · ${row.dosage}`}
@@ -399,7 +399,7 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <StarRow score={score} />
-                  <span className={`font-data text-[10px] uppercase tracking-[0.1em] ${scoreCfg?.color ?? "text-ink/55"}`}>
+                  <span className={`text-[11px] font-semibold ${scoreCfg?.color ?? "text-slate-500"}`}>
                     {score}/5 · {scoreCfg?.label}
                   </span>
                 </div>
@@ -407,18 +407,24 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
 
               {/* Strain chips */}
               {row.strains && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-data text-[11px]">
-                  <span className="text-resin">THC {row.strains.thc_level}%</span>
-                  <span className="text-clinic">CBD {row.strains.cbd_level}%</span>
+                <div className="flex gap-2">
+                  <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                    THC {row.strains.thc_level}%
+                  </span>
+                  <span className="text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
+                    CBD {row.strains.cbd_level}%
+                  </span>
                   {row.strains.category && (
-                    <span className="capitalize text-ink/45">{row.strains.category}</span>
+                    <span className="text-[11px] text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 capitalize">
+                      {row.strains.category}
+                    </span>
                   )}
                 </div>
               )}
 
               {/* Side effects */}
               {hasSE && (
-                <div className="flex items-center gap-1.5 text-[12px] text-flag">
+                <div className="flex items-center gap-1.5 text-[12px] text-rose-700">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   <span>Side effects: {row.fb.side_effects}</span>
                 </div>
@@ -426,7 +432,7 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
 
               {/* Comments */}
               {row.fb.comments && (
-                <p className="border-l-2 border-ink/20 bg-paper px-3 py-2 text-[13px] italic leading-relaxed text-ink/65">
+                <p className="text-[13px] text-slate-600 bg-slate-50 border-l-2 border-slate-300 rounded-r-lg px-3 py-2 leading-relaxed italic">
                   "{row.fb.comments}"
                 </p>
               )}
@@ -479,14 +485,14 @@ const DoctorFeedbackView = () => {
     setFeedbackRows(rows); setLoadingFb(false);
   };
 
-  if (isLoading) return <div className="flex items-center gap-2 py-8 font-data text-[11px] uppercase tracking-[0.1em] text-ink/45"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>;
+  if (isLoading) return <div className="flex items-center gap-2 text-slate-400 text-sm py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>;
 
   return (
     <div className="space-y-5">
       <div className="space-y-1.5">
-        <Label className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">Select patient</Label>
+        <Label className="text-[13px] font-semibold">Select patient</Label>
         <Select value={selectedPatient} onValueChange={loadFeedback}>
-          <SelectTrigger className="rounded-none border-rule text-[13px]"><SelectValue placeholder="Choose a patient…" /></SelectTrigger>
+          <SelectTrigger className="text-[13px]"><SelectValue placeholder="Choose a patient…" /></SelectTrigger>
           <SelectContent>
             {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.users?.full_name}</SelectItem>)}
           </SelectContent>
@@ -496,22 +502,22 @@ const DoctorFeedbackView = () => {
       {patientsFailed && <LoadError what="the patient list" />}
       {fbFailed && <LoadError what="this patient's feedback" />}
 
-      {loadingFb && <div className="flex items-center gap-2 font-data text-[11px] uppercase tracking-[0.1em] text-ink/45"><Loader2 className="h-4 w-4 animate-spin" /> Loading feedback…</div>}
+      {loadingFb && <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading feedback…</div>}
 
       {!loadingFb && !fbFailed && selectedPatient && feedbackRows.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-12">
-          <MessageSquare className="h-6 w-6 text-ink/25" />
-          <p className="text-[13px] text-ink/50">No feedback submitted yet for this patient.</p>
+        <div className="flex flex-col items-center py-12 text-slate-400 gap-2">
+          <MessageSquare className="h-8 w-8 opacity-30" />
+          <p className="text-sm">No feedback submitted yet for this patient.</p>
         </div>
       )}
 
       {feedbackRows.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">{feedbackRows.length} sessions rated</p>
-            <div className="flex items-center gap-1.5 border border-rule bg-paper px-3 py-1">
-              <TrendingUp className="h-3.5 w-3.5 text-ink/40" />
-              <span className="font-data text-[11px] font-semibold text-ink">
+            <p className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">{feedbackRows.length} sessions rated</p>
+            <div className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1">
+              <TrendingUp className="h-3.5 w-3.5 text-slate-500" />
+              <span className="text-[12px] font-semibold text-slate-700">
                 Avg: {(feedbackRows.reduce((s,r) => s + r.fb.effectiveness_score, 0) / feedbackRows.length).toFixed(1)}/5
               </span>
             </div>
@@ -520,13 +526,15 @@ const DoctorFeedbackView = () => {
             const score: number = row.fb.effectiveness_score;
             const hasSE = row.fb.side_effects && row.fb.side_effects.toLowerCase() !== "none";
             return (
-              <div key={i} className="space-y-3 border border-rule bg-white p-4">
+              <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <Leaf className="h-4 w-4 shrink-0 text-ink/35" />
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <Leaf className="h-4 w-4 text-emerald-600" />
+                    </div>
                     <div>
-                      <p className="font-display text-[14px] font-semibold text-ink">{row.strains?.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1 font-data text-[10px] text-ink/45">
+                      <p className="text-[14px] font-semibold text-slate-800">{row.strains?.name}</p>
+                      <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                         <Clock className="h-3 w-3" />
                         {new Date(row.usage_date).toLocaleDateString("en-GB", { day:"2-digit",month:"short",year:"numeric" })}
                         {row.dosage && ` · ${row.dosage}`}
@@ -535,20 +543,20 @@ const DoctorFeedbackView = () => {
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <div className="flex gap-0.5">
-                      {[1,2,3,4,5].map(i => <Star key={i} className={`h-3.5 w-3.5 ${i<=score?"text-ink fill-ink":"text-rule fill-rule"}`}/>)}
+                      {[1,2,3,4,5].map(i => <Star key={i} className={`h-3.5 w-3.5 ${i<=score?"text-amber-400 fill-amber-400":"text-slate-200 fill-slate-200"}`}/>)}
                     </div>
-                    <span className={`font-data text-[10px] ${SCORE_LABELS[score]?.color ?? "text-ink/55"}`}>{score}/5</span>
+                    <span className={`text-[11px] font-semibold ${SCORE_LABELS[score]?.color ?? ""}`}>{score}/5</span>
                   </div>
                 </div>
                 {row.strains && (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-data text-[11px]">
-                    <span className="text-resin">THC {row.strains.thc_level}%</span>
-                    <span className="text-clinic">CBD {row.strains.cbd_level}%</span>
-                    {row.strains.category && <span className="capitalize text-ink/45">{row.strains.category}</span>}
+                  <div className="flex gap-2">
+                    <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">THC {row.strains.thc_level}%</span>
+                    <span className="text-[11px] text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">CBD {row.strains.cbd_level}%</span>
+                    {row.strains.category && <span className="text-[11px] text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 capitalize">{row.strains.category}</span>}
                   </div>
                 )}
-                {hasSE && <div className="flex items-center gap-1.5 text-[12px] text-flag"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{row.fb.side_effects}</div>}
-                {row.fb.comments && <p className="border-l-2 border-ink/20 bg-paper px-3 py-2 text-[13px] leading-relaxed text-ink/65">"{row.fb.comments}"</p>}
+                {hasSE && <div className="flex items-center gap-1.5 text-[12px] text-rose-700"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{row.fb.side_effects}</div>}
+                {row.fb.comments && <p className="text-[13px] text-slate-600 bg-slate-50 rounded-lg px-3 py-2 leading-relaxed">"{row.fb.comments}"</p>}
               </div>
             );
           })}
@@ -574,45 +582,47 @@ const FeedbackPage = () => {
   return (
     <div className="max-w-xl mx-auto py-2 space-y-6 animate-in fade-in duration-500">
 
-      {/* Masthead — same clinical-report header as recommendations and dashboard */}
-      <header className="border-b-2 border-ink pb-5">
-        <p className="flex items-center gap-1.5 font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+      {/* Header */}
+      <div>
+        <div className={`inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-3 py-1 mb-3 uppercase tracking-wide ${
+          isDoctor ? "bg-blue-50 text-blue-700 border border-blue-100" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+        }`}>
           {isDoctor ? <Users className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
-          {isDoctor ? "Clinician view · efficacy reports" : "Treatment record · self-reported"}
-        </p>
-        <h1 className="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+          {isDoctor ? "Clinician view" : "Patient feedback"}
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 mb-1">
           {isDoctor ? "Patient feedback review" : "Treatment feedback"}
         </h1>
-        <p className="mt-2 text-[13px] text-ink/55">
+        <p className="text-sm text-slate-400">
           {isDoctor
             ? "Review your patients' treatment efficacy reports."
             : "Rate your sessions and track what works for you."}
         </p>
-      </header>
+      </div>
 
       {/* Patient: tab switcher */}
       {!isDoctor && (
-        <div className="flex border-b border-rule">
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
           <button
             onClick={() => setActiveTab("submit")}
-            className={`-mb-px flex flex-1 items-center justify-center gap-2 border-b-2 py-2.5 font-data text-[11px] uppercase tracking-[0.12em] transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[13px] font-semibold transition-all ${
               activeTab === "submit"
-                ? "border-ink text-ink"
-                : "border-transparent text-ink/40 hover:text-ink/70"
+                ? "bg-white text-slate-800 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            <ClipboardList className="h-3.5 w-3.5" />
+            <ClipboardList className="h-4 w-4" />
             Submit feedback
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`-mb-px flex flex-1 items-center justify-center gap-2 border-b-2 py-2.5 font-data text-[11px] uppercase tracking-[0.12em] transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[13px] font-semibold transition-all ${
               activeTab === "history"
-                ? "border-ink text-ink"
-                : "border-transparent text-ink/40 hover:text-ink/70"
+                ? "bg-white text-slate-800 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            <History className="h-3.5 w-3.5" />
+            <History className="h-4 w-4" />
             My history
           </button>
         </div>

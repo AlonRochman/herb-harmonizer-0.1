@@ -2,228 +2,24 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { read, readOr } from "@/lib/supabaseRead";
 import { useAppState } from "@/context/AppContext";
-import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import {
-  AlertCircle, CheckCircle2, X, Loader2, ClipboardList, ArrowRight,
+  AlertCircle, Info, CheckCircle2, Leaf, FlaskConical,
+  Zap, Moon, Heart, Brain, Star, TrendingUp,
+  Users, AlertTriangle, ClipboardList, X, Loader2,
 } from "lucide-react";
-import {
-  fetchFeedbackIndex, fetchConditionIndex, scoreStrains, persistRecommendations,
-} from "@/lib/recommendationEngine";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useNavigate } from "react-router-dom";
+import { fetchFeedbackIndex, fetchConditionIndex, scoreStrains, persistRecommendations } from "@/lib/recommendationEngine";
 import type { ScoredStrain } from "@/lib/recommendationEngine";
 
-// ─── Motion preference ────────────────────────────────────────────────────────
-const useReducedMotion = () => {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!mq) return;
-    const h = () => setReduced(mq.matches);
-    mq.addEventListener("change", h);
-    return () => mq.removeEventListener("change", h);
-  }, []);
-  return reduced;
-};
-
-// ─── Chemotype maths ──────────────────────────────────────────────────────────
-// Position on the CBD↔THC axis is the real chemotype ratio, not an invented score.
-const chemotypePosition = (thc: number, cbd: number) => {
-  const total = (thc ?? 0) + (cbd ?? 0);
-  return total <= 0 ? 0.5 : (thc ?? 0) / total;
-};
-
-// Constraint values arrive as raw doubles (e.g. 5.68691800470861%). Never show
-// more precision than a licence actually carries.
-const pctFmt = (n: number | null): string => {
-  if (n === null || Number.isNaN(n)) return "—";
-  const r = Math.round(n * 10) / 10;
-  return `${Number.isInteger(r) ? r : r.toFixed(1)}%`;
-};
-
-const chemotypeLabel = (pos: number) =>
-  pos >= 0.7 ? "Type I · THC-dominant"
-  : pos >= 0.3 ? "Type II · balanced"
-  : "Type III · CBD-dominant";
-
-// ─── SIGNATURE: chemotype axis + licence headroom ────────────────────────────
-// The axis places the strain on the real CBD↔THC chemotype ratio, so the three
-// cards can be compared at a glance. Underneath, the headroom meter answers the
-// question a licensed patient actually asks: how close is this to my limit?
-const ChemotypeAxis = ({
-  thc, cbd, thcMax, cbdMin, animate,
-}: {
-  thc: number; cbd: number;
-  thcMax: number | null; cbdMin: number | null; animate: boolean;
-}) => {
-  const pos = chemotypePosition(thc, cbd);
-  const used = thcMax !== null && thcMax > 0 ? Math.min((thc ?? 0) / thcMax, 1) : null;
-  const meetsFloor = cbdMin !== null ? (cbd ?? 0) >= cbdMin : null;
-
-  return (
-    <div className="pt-1">
-      <div className="flex items-baseline justify-between mb-2.5">
-        <span className="font-data text-[10px] font-medium uppercase tracking-[0.14em] text-ink/40">
-          Chemotype
-        </span>
-        <span className="font-data text-[10px] font-medium text-ink/55">
-          {chemotypeLabel(pos)}
-        </span>
-      </div>
-
-      {/* the ratio axis */}
-      <div className="relative h-6">
-        <div className="absolute left-0 right-0 top-[15px] h-px bg-rule" />
-        <div
-          className="absolute top-[8px] h-[15px] w-[2px] bg-ink"
-          style={{
-            left: `${Math.min(Math.max(pos, 0), 1) * 100}%`,
-            transform: "translateX(-1px)",
-            transition: animate ? "left 900ms cubic-bezier(0.22,1,0.36,1)" : "none",
-          }}
-        />
-        <span className="absolute left-0 top-0 font-data text-[9px] uppercase tracking-wider text-clinic">CBD</span>
-        <span className="absolute right-0 top-0 font-data text-[9px] uppercase tracking-wider text-resin">THC</span>
-      </div>
-
-      {/* licence headroom — one row per cannabinoid, mono so digits align */}
-      <div className="mt-3 space-y-1.5 font-data text-[11px]">
-        <div className="flex items-center gap-2.5">
-          <span className="text-resin w-[68px] shrink-0">
-            THC <span className="font-semibold">{(thc ?? 0).toFixed(1)}%</span>
-          </span>
-          {used !== null ? (
-            <>
-              <span className="flex-1 h-[3px] bg-rule relative">
-                <span
-                  className={`absolute inset-y-0 left-0 ${used >= 0.9 ? "bg-flag" : "bg-resin"}`}
-                  style={{
-                    width: `${used * 100}%`,
-                    transition: animate ? "width 800ms cubic-bezier(0.22,1,0.36,1) 120ms" : "none",
-                  }}
-                />
-              </span>
-              <span className={`shrink-0 ${used >= 0.9 ? "text-flag" : "text-ink/40"}`}>
-                {Math.round(used * 100)}% of {pctFmt(thcMax)} ceiling
-              </span>
-            </>
-          ) : (
-            <span className="text-ink/30">no ceiling on your licence</span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <span className="text-clinic w-[68px] shrink-0">
-            CBD <span className="font-semibold">{(cbd ?? 0).toFixed(1)}%</span>
-          </span>
-          <span className={meetsFloor === false ? "text-flag" : "text-ink/40"}>
-            {meetsFloor === null
-              ? "no floor on your licence"
-              : meetsFloor
-                ? `meets your ${pctFmt(cbdMin)} floor`
-                : `below your ${pctFmt(cbdMin)} floor`}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Evidence ladder ─────────────────────────────────────────────────────────
-// Parses the engine's rationale strings into indication / grade so the grade can
-// be set in mono and right-aligned, the way a guideline table reads.
-const GRADE_WEIGHT: Record<string, string> = {
-  strong: "text-ink font-semibold",
-  moderate: "text-ink/70 font-medium",
-  anecdotal: "text-ink/45",
-};
-
-const EvidenceLadder = ({ reasons }: { reasons: string[] }) => {
-  // Feedback-derived lines live in Reported outcomes; showing them here too
-  // would state the same number twice.
-  const clinical = reasons.filter((r) => !/\d\/5,|\breports\)/i.test(r));
-  if (clinical.length === 0) return null;
-  const parsed = clinical.map((r) => {
-    const m = r.match(/^(Primary|Secondary) indication:\s*(.+?)\s*\((strong|moderate|anecdotal) evidence\)$/i);
-    if (m) return { label: m[2], rank: m[1].toLowerCase(), grade: m[3].toLowerCase() };
-    return { label: r, rank: null as string | null, grade: null as string | null };
-  });
-
-  return (
-    <div className="pt-1">
-      <span className="font-data text-[10px] font-medium uppercase tracking-[0.14em] text-ink/40">
-        Why this strain
-      </span>
-      <ul className="mt-2 border-l border-rule">
-        {parsed.map((p, i) => (
-          <li key={i} className="flex items-baseline gap-3 pl-3 py-[5px]">
-            <span className="flex-1 text-[13px] leading-snug text-ink/80">
-              {p.rank ? <span className="capitalize">{p.label}</span> : p.label}
-            </span>
-            {p.rank && (
-              <span className="font-data text-[9px] uppercase tracking-wider text-ink/35 shrink-0">
-                {p.rank}
-              </span>
-            )}
-            {p.grade && (
-              <span className={`font-data text-[10px] shrink-0 ${GRADE_WEIGHT[p.grade]}`}>
-                {p.grade}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-
-// ─── Reported outcomes ───────────────────────────────────────────────────────
-const Outcomes = ({ strain }: { strain: ScoredStrain }) => {
-  const has = strain.feedbackCount > 0 && strain.avgEffectiveness !== null;
-  return (
-    <div className="pt-1">
-      <div className="flex items-baseline justify-between">
-        <span className="font-data text-[10px] font-medium uppercase tracking-[0.14em] text-ink/40">
-          Reported outcomes
-        </span>
-        {has ? (
-          <span className="font-data text-[11px] text-ink/70">
-            <span className="font-semibold text-ink">{strain.avgEffectiveness!.toFixed(1)}</span>
-            <span className="text-ink/35">/5</span>
-            <span className="text-ink/35"> · {strain.feedbackCount} rated</span>
-          </span>
-        ) : (
-          <span className="font-data text-[10px] text-ink/30">not yet rated</span>
-        )}
-      </div>
-      {has && (
-        <div className="mt-2 flex gap-[3px]" aria-hidden>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className={`h-[3px] flex-1 ${
-                i <= Math.round(strain.avgEffectiveness!) ? "bg-ink/70" : "bg-rule"
-              }`}
-            />
-          ))}
-        </div>
-      )}
-      {has && (strain.sideEffectRate ?? 0) > 0.3 && (
-        <p className="mt-1.5 font-data text-[10px] text-flag">
-          side effects in {Math.round((strain.sideEffectRate ?? 0) * 100)}% of reports
-        </p>
-      )}
-    </div>
-  );
-};
-
-// ─── Terpenes ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const parseTerpenes = (strain: ScoredStrain): string[] => {
   try {
     if (strain.terpenes) {
-      const p = typeof strain.terpenes === "string" ? JSON.parse(strain.terpenes) : strain.terpenes;
-      if (Array.isArray(p)) return p as string[];
+      const p = typeof strain.terpenes === "string"
+        ? JSON.parse(strain.terpenes) : strain.terpenes;
+      if (Array.isArray(p)) return p;
     }
   } catch {}
   if (strain.terpenes_profile)
@@ -231,142 +27,165 @@ const parseTerpenes = (strain: ScoredStrain): string[] => {
   return [];
 };
 
-const TERPENE_EFFECT: Record<string, string> = {
-  myrcene:       "sedating, muscle relaxant",
-  linalool:      "calming, anxiolytic",
-  limonene:      "mood-elevating",
-  caryophyllene: "anti-inflammatory",
-  pinene:        "alertness, memory",
-  terpinolene:   "energising",
-  humulene:      "appetite suppressant",
+const TERPENE_INFO: Record<string, { color: string; effect: string; icon: typeof Zap }> = {
+  myrcene:       { color: "bg-green-50 text-green-700 border-green-200",    effect: "Sedating · muscle relaxant · earthy",     icon: Moon        },
+  linalool:      { color: "bg-purple-50 text-purple-700 border-purple-200", effect: "Calming · anti-anxiety · floral",          icon: Heart       },
+  limonene:      { color: "bg-yellow-50 text-yellow-700 border-yellow-200", effect: "Uplifting · mood-enhancing · citrus",      icon: Zap         },
+  caryophyllene: { color: "bg-orange-50 text-orange-700 border-orange-200", effect: "Anti-inflammatory · pain relief · spicy",  icon: FlaskConical},
+  pinene:        { color: "bg-teal-50 text-teal-700 border-teal-200",       effect: "Alertness · memory · pine",               icon: Brain       },
+  terpinolene:   { color: "bg-blue-50 text-blue-700 border-blue-200",       effect: "Mildly sedating · antioxidant · fresh",   icon: Leaf        },
+  humulene:      { color: "bg-rose-50 text-rose-700 border-rose-200",       effect: "Appetite suppressant · anti-inflammatory", icon: FlaskConical},
+};
+const getTerpeneInfo = (name: string) =>
+  TERPENE_INFO[name.toLowerCase()] ?? { color: "bg-slate-50 text-slate-600 border-slate-200", effect: "Terpene with therapeutic properties", icon: Leaf };
+
+const CAT_STYLE: Record<string, { pill: string; bar: string }> = {
+  indica: { pill: "bg-purple-50 text-purple-700 border-purple-200", bar: "bg-purple-400" },
+  sativa: { pill: "bg-amber-50  text-amber-700  border-amber-200",  bar: "bg-amber-400"  },
+  hybrid: { pill: "bg-teal-50   text-teal-700   border-teal-200",   bar: "bg-teal-400"   },
 };
 
-const Terpenes = ({ names }: { names: string[] }) => {
-  if (names.length === 0) return null;
-  return (
-    <div className="pt-1">
-      <span className="font-data text-[10px] font-medium uppercase tracking-[0.14em] text-ink/40">
-        Terpenes
-      </span>
-      <dl className="mt-1.5 space-y-1">
-        {names.map((n) => (
-          <div key={n} className="flex items-baseline gap-2 text-[12px]">
-            <dt className="font-data text-ink/75 lowercase">{n}</dt>
-            <dd className="text-ink/40">{TERPENE_EFFECT[n.toLowerCase()] ?? "—"}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-};
+const CONSUMPTION_METHODS = [
+  "Vaporizer", "Oil drops", "Capsules", "Smoking", "Edibles", "Topical",
+];
 
-// ─── Log a session ───────────────────────────────────────────────────────────
-const METHODS = ["Vaporizer", "Oil drops", "Capsules", "Smoking", "Edibles", "Topical"];
-
-const LogSessionModal = ({
-  strain, patientId, onClose, onSaved,
+// ─── Log Usage Modal ──────────────────────────────────────────────────────────
+const LogUsageModal = ({
+  strain,
+  patientId,
+  onClose,
+  onSaved,
 }: {
-  strain: ScoredStrain; patientId: string;
-  onClose: () => void; onSaved: (usageId: string) => void;
+  strain: ScoredStrain;
+  patientId: string;
+  onClose: () => void;
+  onSaved: (usageId: string) => void;
 }) => {
-  const [dosage, setDosage] = useState("");
-  const [method, setMethod] = useState("Vaporizer");
-  const [date, setDate]     = useState(new Date().toISOString().split("T")[0]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState("");
+  const [dosage, setDosage]   = useState("");
+  const [method, setMethod]   = useState("Vaporizer");
+  const [date, setDate]       = useState(new Date().toISOString().split("T")[0]);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
 
-  const save = async () => {
-    if (!dosage.trim()) { setError("Enter the dose you took, for example 0.2g or 3 drops."); return; }
+  const handleSave = async () => {
+    if (!dosage.trim()) { setError("Please enter the dosage."); return; }
     setSaving(true); setError("");
-    const { data, error: err } = await supabase
-      .from("usage_records")
-      .insert({
-        patient_id: patientId, strain_id: strain.id,
-        dosage: dosage.trim(), consumption_method: method, usage_date: date,
-      })
-      .select("id").single();
-    if (err || !data) {
-      setError(err?.message ?? "The session did not save. Try again.");
+    try {
+      const { data, error: err } = await supabase
+        .from("usage_records")
+        .insert({
+          patient_id:         patientId,
+          strain_id:          strain.id,
+          dosage:             dosage.trim(),
+          consumption_method: method,
+          usage_date:         date,
+        })
+        .select("id")
+        .single();
+
+      if (err || !data) throw new Error(err?.message ?? "Insert failed");
+      onSaved(data.id);
+    } catch (e: any) {
+      setError(e.message ?? "Could not save. Try again.");
       setSaving(false);
-      return;
     }
-    onSaved(data.id);
   };
 
   return (
+    // Backdrop
     <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      role="dialog" aria-modal="true" aria-label={`Log a session with ${strain.name}`}
     >
-      <div className="bg-white w-full max-w-sm border border-rule">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-rule">
-          <div>
-            <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Log a session</p>
-            <p className="text-[15px] font-display font-semibold text-ink mt-0.5">{strain.name}</p>
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <ClipboardList className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-slate-900">Log usage</p>
+              <p className="text-[11px] text-slate-400">{strain.name}</p>
+            </div>
           </div>
-          <button
-            onClick={onClose} aria-label="Close"
-            className="p-1.5 text-ink/40 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* Body */}
         <div className="px-5 py-4 space-y-4">
           {error && (
-            <p className="font-data text-[11px] text-flag border-l-2 border-flag pl-2.5">{error}</p>
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5">
+              <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-red-700">{error}</p>
+            </div>
           )}
 
-          <label className="block">
-            <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Date</span>
+          {/* Date */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Date of use</label>
             <input
-              type="date" value={date} max={new Date().toISOString().split("T")[0]}
+              type="date"
+              value={date}
+              max={new Date().toISOString().split("T")[0]}
               onChange={(e) => setDate(e.target.value)}
-              className="mt-1.5 w-full h-10 px-3 border border-rule bg-paper font-data text-[13px] text-ink outline-none focus-visible:border-ink"
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-[13px] outline-none focus:ring-2 focus:ring-emerald-400/40 focus:bg-white"
             />
-          </label>
+          </div>
 
-          <label className="block">
-            <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Dose</span>
+          {/* Dosage */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">
+              Dosage <span className="text-red-400">*</span>
+            </label>
             <input
-              type="text" placeholder="0.2g · 3 drops · 1 capsule" value={dosage}
+              type="text"
+              placeholder="e.g. 0.2g, 3 drops, 1 capsule"
+              value={dosage}
               onChange={(e) => setDosage(e.target.value)}
-              className="mt-1.5 w-full h-10 px-3 border border-rule bg-paper font-data text-[13px] text-ink placeholder:text-ink/25 outline-none focus-visible:border-ink"
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-[13px] outline-none focus:ring-2 focus:ring-emerald-400/40 focus:bg-white"
             />
-          </label>
+          </div>
 
-          <fieldset>
-            <legend className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Method</legend>
-            <div className="mt-1.5 grid grid-cols-3 gap-px bg-rule border border-rule">
-              {METHODS.map((m) => (
+          {/* Method */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Consumption method</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {CONSUMPTION_METHODS.map((m) => (
                 <button
-                  key={m} onClick={() => setMethod(m)}
-                  aria-pressed={method === m}
-                  className={`py-2 px-1 text-[11px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink ${
-                    method === m ? "bg-ink text-paper" : "bg-white text-ink/60 hover:bg-paper"
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  className={`py-2 px-2 rounded-xl text-[11px] font-medium border-2 transition-all ${
+                    method === m
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                   }`}
                 >
                   {m}
                 </button>
               ))}
             </div>
-          </fieldset>
+          </div>
         </div>
 
-        <div className="px-5 pb-5 flex gap-2">
+        {/* Footer */}
+        <div className="px-5 pb-5 flex gap-2.5">
           <button
             onClick={onClose}
-            className="flex-1 h-10 border border-rule text-[13px] text-ink/60 hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
+            className="flex-1 h-10 rounded-xl border border-slate-200 text-[13px] text-slate-500 hover:bg-slate-50 transition-colors"
           >
             Cancel
           </button>
           <button
-            onClick={save} disabled={saving}
-            className="flex-1 h-10 bg-ink text-paper text-[13px] font-medium disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {saving ? "Saving" : "Save session"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save session"}
           </button>
         </div>
       </div>
@@ -374,84 +193,213 @@ const LogSessionModal = ({
   );
 };
 
-// ─── Rate a session ──────────────────────────────────────────────────────────
-const SIDE_EFFECTS = ["None", "Dry mouth", "Dizziness", "Fatigue", "Nausea", "Anxiety", "Headache", "Sleepiness"];
-const RELIEF = ["", "No relief", "Slight", "Moderate", "Significant", "Full relief"];
+// ─── Score badge ──────────────────────────────────────────────────────────────
+// This used to be a percentage ring. The engine returns a sum of rule weights,
+// not a probability, so "84% match" claimed a confidence it cannot support —
+// the ring was removed for that reason and stays removed. The number itself is
+// still shown, labelled for what it is, and the rank pill is unchanged.
+const ScoreBadge = ({ score, rank }: { score: number; rank: number }) => {
+  const rankColors = ["bg-amber-400 text-amber-900", "bg-slate-200 text-slate-600", "bg-orange-200 text-orange-700"];
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="flex flex-col items-center justify-center w-16 h-16 rounded-full bg-white border border-slate-200">
+        <span className="text-[17px] font-bold text-slate-800 leading-none">{score}</span>
+        <span className="text-[8px] text-slate-400 tracking-wide mt-1 uppercase">rule sum</span>
+      </div>
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rankColors[rank - 1] ?? "bg-slate-100 text-slate-500"}`}>
+        #{rank}
+      </span>
+    </div>
+  );
+};
 
-const RateSession = ({
+const LevelBar = ({ label, value, max = 30, barClass, textClass, animate, delay }: {
+  label: string; value: number; max?: number; barClass: string;
+  textClass: string; animate: boolean; delay: number;
+}) => (
+  <div className="space-y-1">
+    <div className="flex justify-between">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</span>
+      <span className={`text-[11px] font-bold ${textClass}`}>{value}%</span>
+    </div>
+    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div className={`h-full rounded-full ${barClass}`}
+        style={{ width: animate ? `${Math.min((value / max) * 100, 100)}%` : "0%",
+          transition: animate ? `width 0.9s cubic-bezier(0.34,1.2,0.64,1) ${delay}ms` : "none" }} />
+    </div>
+  </div>
+);
+
+const FeedbackBadge = ({ strain }: { strain: ScoredStrain }) => {
+  if (!strain.feedbackCount || strain.avgEffectiveness === null) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 py-1">
+        <Users className="h-3 w-3" />
+        <span>No community data yet</span>
+      </div>
+    );
+  }
+  const avg = strain.avgEffectiveness;
+  const stars = Math.round(avg);
+  const barColor = avg >= 4 ? "bg-emerald-500" : avg >= 3 ? "bg-amber-400" : "bg-red-400";
+  const scoreColor = avg >= 4 ? "text-emerald-700" : avg >= 3 ? "text-amber-600" : "text-red-600";
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Community efficacy</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          {[1,2,3,4,5].map((i) => (
+            <Star key={i} className={`h-3 w-3 ${i <= stars ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
+          ))}
+          <span className={`text-[12px] font-bold ml-1.5 ${scoreColor}`}>{avg.toFixed(1)}</span>
+          <span className="text-[10px] text-slate-400">/5</span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${Math.round((avg / 5) * 100)}%` }} />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+          <Users className="h-2.5 w-2.5" />
+          {strain.feedbackCount} report{strain.feedbackCount !== 1 ? "s" : ""} · same condition
+        </span>
+        {(strain.sideEffectRate ?? 0) > 0.3 && (
+          <span className="text-[10px] text-amber-600 flex items-center gap-1">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            {Math.round((strain.sideEffectRate ?? 0) * 100)}% side effects
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const TerpeneTag = ({ name }: { name: string }) => {
+  const [show, setShow] = useState(false);
+  const info = getTerpeneInfo(name);
+  const Icon = info.icon;
+  return (
+    <div className="relative">
+      <button onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+        onFocus={() => setShow(true)} onBlur={() => setShow(false)}
+        className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border cursor-default hover:shadow-sm transition-all ${info.color}`}>
+        <Icon className="h-2.5 w-2.5" aria-hidden />{name}
+      </button>
+      {show && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 pointer-events-none">
+          <div className="bg-slate-900 text-white text-[11px] rounded-lg px-3 py-2 w-44 shadow-xl text-center leading-relaxed">
+            <p className="font-semibold mb-0.5 capitalize">{name}</p>
+            <p className="text-slate-300 text-[10px]">{info.effect}</p>
+          </div>
+          <div className="w-0 h-0 mx-auto border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const reasonIcon = (r: string) => {
+  const s = r.toLowerCase();
+  if (s.includes("terpene"))                             return <FlaskConical className="h-3 w-3 text-purple-500 shrink-0 mt-0.5" />;
+  if (s.includes("cbd"))                                 return <Leaf className="h-3 w-3 text-teal-500 shrink-0 mt-0.5" />;
+  if (s.includes("indica") || s.includes("sleep"))      return <Moon className="h-3 w-3 text-indigo-400 shrink-0 mt-0.5" />;
+  if (s.includes("sativa") || s.includes("mood"))       return <Zap className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />;
+  if (s.includes("effective") || s.includes("efficac")) return <Star className="h-3 w-3 text-amber-400 shrink-0 mt-0.5 fill-amber-400" />;
+  return <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />;
+};
+
+// ─── Inline feedback form (shown after logging usage) ────────────────────────
+const SIDE_EFFECTS_SHORT = ["None","Dry mouth","Dizziness","Fatigue","Nausea","Anxiety","Headache","Sleepiness"];
+
+const InlineFeedbackForm = ({
   usageId, strainName, onDone,
 }: { usageId: string; strainName: string; onDone: () => void }) => {
-  const [score, setScore] = useState(0);
-  const [effects, setEffects] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [score,      setScore]      = useState(0);
+  const [sideEffects,setSideEffects]= useState<string[]>([]);
+  const [comments,   setComments]   = useState("");
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState("");
 
-  const toggle = (item: string) => {
-    if (item === "None") { setEffects(["None"]); return; }
-    const next = effects.filter((s) => s !== "None");
-    setEffects(next.includes(item) ? next.filter((s) => s !== item) : [...next, item]);
+  const toggleSE = (item: string) => {
+    if (item === "None") { setSideEffects(["None"]); return; }
+    const next = sideEffects.filter((s) => s !== "None");
+    setSideEffects(next.includes(item) ? next.filter((s) => s !== item) : [...next, item]);
   };
 
-  const save = async () => {
-    if (score === 0)        { setError("Choose how much relief you felt, from 1 to 5."); return; }
-    if (!effects.length)    { setError("Choose a side effect, or None."); return; }
+  const handleSubmit = async () => {
+    if (score === 0)          { setError("Please select a score."); return; }
+    if (!sideEffects.length)  { setError("Please select side effects (or 'None')."); return; }
     setSaving(true); setError("");
-    const { error: err } = await supabase.from("feedback").insert({
-      usage_id: usageId, effectiveness_score: score,
-      side_effects: effects.join(", "), comments: notes,
-    });
-    if (err) {
-      setError("The rating did not save. Try again.");
+    try {
+      const { error: err } = await supabase.from("feedback").insert({
+        usage_id:            usageId,
+        effectiveness_score: score,
+        side_effects:        sideEffects.join(", ") || "None",
+        comments,
+      });
+      if (err) throw err;
+      onDone();
+    } catch {
+      setError("Could not save. Please try again.");
       setSaving(false);
-      return;
     }
-    onDone();
   };
 
   return (
-    <div className="border-t border-rule bg-paper px-5 py-4 space-y-4">
-      <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">
-        Rate {strainName}
+    <div className="border-t border-amber-100 bg-amber-50/40 px-4 py-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700">
+        Rate: {strainName}
       </p>
 
-      {error && <p className="font-data text-[11px] text-flag border-l-2 border-flag pl-2.5">{error}</p>}
+      {error && (
+        <div className="flex items-center gap-1.5 text-[11px] text-red-600">
+          <AlertCircle className="h-3 w-3 shrink-0" />{error}
+        </div>
+      )}
 
+      {/* Score — star buttons */}
       <div>
-        <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Relief</span>
-        <div className="mt-1.5 flex items-center gap-px bg-rule border border-rule w-fit">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n} onClick={() => setScore(n)} aria-pressed={score === n}
-              className={`w-10 h-9 font-data text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink ${
-                score === n ? "bg-ink text-paper" : "bg-white text-ink/50 hover:bg-paper"
-              }`}
-            >
-              {n}
+        <p className="text-[11px] text-slate-500 mb-1.5">Effectiveness <span className="text-red-400">*</span></p>
+        <div className="flex gap-1.5">
+          {[1,2,3,4,5].map((n) => (
+            <button key={n} onClick={() => setScore(n)}
+              className={`w-10 h-10 rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all ${
+                score === n
+                  ? "bg-emerald-700 border-emerald-700 text-white scale-105 shadow-sm"
+                  : "bg-white border-slate-200 text-slate-400 hover:border-emerald-300"
+              }`}>
+              <Star className={`h-3.5 w-3.5 ${score === n ? "fill-white" : "fill-none"}`} />
+              <span className="text-[9px] font-bold">{n}</span>
             </button>
           ))}
           {score > 0 && (
-            <span className="pl-3 text-[12px] text-ink/60 bg-transparent">{RELIEF[score]}</span>
+            <span className={`self-center text-[11px] font-medium ml-1 ${
+              score >= 4 ? "text-emerald-600" : score >= 3 ? "text-amber-600" : "text-red-500"
+            }`}>
+              {["","No relief","Slight","Moderate","Significant","Complete relief"][score]}
+            </span>
           )}
         </div>
       </div>
 
+      {/* Side effects */}
       <div>
-        <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Side effects</span>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {SIDE_EFFECTS.map((se) => {
-            const on = effects.includes(se);
+        <p className="text-[11px] text-slate-500 mb-1.5">Side effects <span className="text-red-400">*</span></p>
+        <div className="flex flex-wrap gap-1.5">
+          {SIDE_EFFECTS_SHORT.map((se) => {
+            const active = sideEffects.includes(se);
             return (
-              <button
-                key={se} onClick={() => toggle(se)} aria-pressed={on}
-                className={`px-2.5 py-1 text-[11px] border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink ${
-                  on
+              <button key={se} onClick={() => toggleSE(se)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                  active
                     ? se === "None"
-                      ? "border-ink bg-ink text-paper"
-                      : "border-flag bg-flag/10 text-flag"
-                    : "border-rule bg-white text-ink/55 hover:border-ink/30"
-                }`}
-              >
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : "bg-rose-50 text-rose-700 border-rose-300"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                }`}>
                 {se}
               </button>
             );
@@ -459,183 +407,232 @@ const RateSession = ({
         </div>
       </div>
 
-      <label className="block">
-        <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">
-          Note for your doctor
-        </span>
-        <textarea
-          value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-          placeholder="Optional"
-          className="mt-1.5 w-full border border-rule bg-white px-3 py-2 text-[12px] text-ink placeholder:text-ink/25 outline-none focus-visible:border-ink resize-none"
-        />
-      </label>
+      {/* Optional note */}
+      <textarea
+        value={comments}
+        onChange={(e) => setComments(e.target.value)}
+        placeholder="Optional note for your doctor…"
+        rows={2}
+        className="w-full text-[12px] bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-400/40 resize-none"
+      />
 
+      {/* Submit */}
       <div className="flex gap-2">
         <button
-          onClick={save} disabled={saving}
-          className="h-9 px-4 bg-ink text-paper text-[12px] font-medium disabled:opacity-50 flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          onClick={handleSubmit}
+          disabled={saving}
+          className="flex-1 h-9 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
         >
-          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {saving ? "Saving" : "Save rating"}
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          {saving ? "Saving…" : "Submit feedback"}
         </button>
-        <button
-          onClick={onDone}
-          className="h-9 px-4 border border-rule text-[12px] text-ink/55 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
-        >
-          Later
+        <button onClick={onDone}
+          className="px-4 h-9 rounded-xl border border-slate-200 text-slate-500 text-[12px] hover:bg-slate-50 transition-colors">
+          Skip
         </button>
       </div>
     </div>
   );
 };
 
-// ─── Strain card ─────────────────────────────────────────────────────────────
+// ─── Strain card ──────────────────────────────────────────────────────────────
 const StrainCard = ({
-  strain, rank, thcMax, cbdMin, patientId, revealDelay, reduced,
+  strain, rank, revealDelay, patientId,
 }: {
-  strain: ScoredStrain; rank: number;
-  thcMax: number | null; cbdMin: number | null;
-  patientId: string; revealDelay: number; reduced: boolean;
+  strain: ScoredStrain; rank: number; revealDelay: number; patientId: string;
 }) => {
   const navigate = useNavigate();
-  const [shown, setShown]       = useState(reduced);
-  const [animate, setAnimate]   = useState(reduced);
-  const [modal, setModal]       = useState(false);
-  const [usageId, setUsageId]   = useState<string | null>(null);
-  const [rating, setRating]     = useState(false);
-  const [rated, setRated]       = useState(false);
+  const [visible, setVisible]             = useState(false);
+  const [animate, setAnimate]             = useState(false);
+  const [showLogModal, setShowLogModal]   = useState(false);
+  const [loggedUsageId, setLoggedUsageId] = useState<string | null>(null);
+  const [showFeedback, setShowFeedback]   = useState(false);
+  const [feedbackDone, setFeedbackDone]   = useState(false);
+
+  const isTop    = rank === 1;
+  const cat      = strain.category?.toLowerCase() ?? "";
+  const catStyle = CAT_STYLE[cat];
+  const terpenes = parseTerpenes(strain);
 
   useEffect(() => {
-    if (reduced) return;
-    const a = setTimeout(() => setShown(true), revealDelay);
-    const b = setTimeout(() => setAnimate(true), revealDelay + 220);
-    return () => { clearTimeout(a); clearTimeout(b); };
-  }, [revealDelay, reduced]);
+    const t1 = setTimeout(() => setVisible(true), revealDelay);
+    const t2 = setTimeout(() => setAnimate(true), revealDelay + 100);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [revealDelay]);
 
-  const lead = rank === 1;
+  const handleLogSaved = (usageId: string) => {
+    setLoggedUsageId(usageId);
+    setShowLogModal(false);
+    setShowFeedback(true); // ← open inline form immediately
+  };
 
   return (
     <>
-      <article
-        className={`bg-white border ${lead ? "border-ink" : "border-rule"} ${
-          reduced ? "" : "transition-all duration-500"
-        } ${shown ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
-      >
-        {/* Header: rank is an ordinal — these are genuinely ranked by fit */}
-        <header
-          className={`flex items-baseline gap-3 px-5 py-3 border-b ${
-            lead ? "bg-ink border-ink" : "bg-white border-rule"
-          }`}
-        >
-          <span className={`font-data text-[11px] font-medium ${lead ? "text-paper/50" : "text-ink/30"}`}>
-            {String(rank).padStart(2, "0")}
-          </span>
-          <h2 className={`flex-1 font-display text-[17px] font-semibold leading-none ${lead ? "text-paper" : "text-ink"}`}>
-            {strain.name}
-          </h2>
-          {strain.category && (
-            <span className={`font-data text-[10px] uppercase tracking-wider ${lead ? "text-paper/55" : "text-ink/40"}`}>
-              {strain.category}
-            </span>
+      <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+        <div className={`bg-white rounded-2xl overflow-hidden border hover:shadow-md transition-shadow ${isTop ? "border-emerald-300 shadow-sm" : "border-slate-200"}`}>
+          {isTop && (
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2 flex items-center gap-2">
+              <span className="text-white text-xs">★</span>
+              <span className="text-[11px] font-semibold text-white tracking-wide">Best therapeutic fit</span>
+              <span className="ml-auto text-[10px] text-emerald-200">Top recommendation</span>
+            </div>
           )}
-        </header>
+          {catStyle && <div className={`h-1 w-full ${catStyle.bar}`} />}
 
-        <div className="px-5 py-4 space-y-4">
-          <ChemotypeAxis
-            thc={strain.thc_level} cbd={strain.cbd_level}
-            thcMax={thcMax} cbdMin={cbdMin} animate={animate}
-          />
-          <div className="h-px bg-rule" />
-          <EvidenceLadder reasons={strain.reasons} />
-          <Outcomes strain={strain} />
-          <Terpenes names={parseTerpenes(strain)} />
-          {strain.producer && (
-            <p className="font-data text-[10px] text-ink/30 pt-1">Grown by {strain.producer}</p>
+          <div className="flex">
+            <div className={`w-[88px] shrink-0 flex flex-col items-center justify-center py-5 border-r ${isTop ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
+              <ScoreBadge score={strain.matchScore} rank={rank} />
+            </div>
+
+            <div className="flex-1 p-4 space-y-3 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold text-slate-900 leading-tight">{strain.name}</h3>
+                  {strain.producer && (
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      <span className="w-1 h-1 rounded-full bg-slate-300 inline-block" />{strain.producer}
+                    </p>
+                  )}
+                </div>
+                {catStyle && strain.category && (
+                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize whitespace-nowrap ${catStyle.pill}`}>
+                    {strain.category}
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5 space-y-2">
+                <LevelBar label="THC" value={strain.thc_level ?? 0} barClass="bg-gradient-to-r from-amber-400 to-amber-500" textClass="text-amber-700" animate={animate} delay={0} />
+                <LevelBar label="CBD" value={strain.cbd_level ?? 0} max={20} barClass="bg-gradient-to-r from-teal-400 to-teal-500" textClass="text-teal-700" animate={animate} delay={150} />
+              </div>
+
+              <FeedbackBadge strain={strain} />
+
+              {strain.reasons.length > 0 && (
+                <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-3 py-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 mb-2">Clinical rationale</p>
+                  <ul className="space-y-1.5">
+                    {strain.reasons.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
+                        {reasonIcon(r)}<span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {terpenes.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Terpene profile</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {terpenes.map((t) => <TerpeneTag key={t} name={t} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                {feedbackDone ? (
+                  <div className="flex-1 flex items-center gap-1.5 h-8 text-[11px] text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Feedback saved — thank you!
+                  </div>
+                ) : loggedUsageId && !showFeedback ? (
+                  <button
+                    onClick={() => setShowFeedback(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors animate-in fade-in duration-300"
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                    Rate this session
+                  </button>
+                ) : !loggedUsageId ? (
+                  <button
+                    onClick={() => setShowLogModal(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Log usage
+                  </button>
+                ) : null}
+                {!feedbackDone && (
+                  <Button size="sm" variant="outline"
+                    className="text-xs h-8 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50"
+                    onClick={() => navigate("/strains")}>
+                    Catalog
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Inline feedback form — opens after Log Usage */}
+          {showFeedback && loggedUsageId && !feedbackDone && (
+            <InlineFeedbackForm
+              usageId={loggedUsageId}
+              strainName={strain.name}
+              onDone={() => { setShowFeedback(false); setFeedbackDone(true); }}
+            />
           )}
         </div>
+      </div>
 
-        <footer className="px-5 pb-5 flex items-center gap-2">
-          {rated ? (
-            <p className="flex items-center gap-1.5 font-data text-[11px] text-ink/60">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Rating saved
-            </p>
-          ) : usageId && !rating ? (
-            <button
-              onClick={() => setRating(true)}
-              className="h-9 px-4 border border-ink text-ink text-[12px] font-medium hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            >
-              Rate this session
-            </button>
-          ) : !usageId ? (
-            <button
-              onClick={() => setModal(true)}
-              disabled={!patientId}
-              title={patientId ? undefined : "Complete your profile to log sessions"}
-              className="h-9 px-4 bg-ink text-paper text-[12px] font-medium flex items-center gap-2 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            >
-              <ClipboardList className="h-3.5 w-3.5" /> Log a session
-            </button>
-          ) : null}
-          <button
-            onClick={() => navigate("/strains")}
-            className="ml-auto font-data text-[11px] text-ink/45 hover:text-ink inline-flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
-          >
-            Catalogue <ArrowRight className="h-3 w-3" />
-          </button>
-        </footer>
-
-        {rating && usageId && !rated && (
-          <RateSession
-            usageId={usageId} strainName={strain.name}
-            onDone={() => { setRating(false); setRated(true); }}
-          />
-        )}
-      </article>
-
-      {modal && patientId && (
-        <LogSessionModal
-          strain={strain} patientId={patientId}
-          onClose={() => setModal(false)}
-          onSaved={(id) => { setUsageId(id); setModal(false); setRating(true); }}
+      {/* Log Usage Modal */}
+      {showLogModal && patientId && (
+        <LogUsageModal
+          strain={strain}
+          patientId={patientId}
+          onClose={() => setShowLogModal(false)}
+          onSaved={handleLogSaved}
         />
       )}
     </>
   );
 };
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
-const Skeleton = () => (
-  <div className="bg-white border border-rule">
-    <div className="px-5 py-3 border-b border-rule flex gap-3">
-      <div className="h-3 w-5 bg-rule" />
-      <div className="h-3 w-28 bg-rule" />
-    </div>
-    <div className="px-5 py-5 space-y-4">
-      <div className="h-px bg-rule" />
-      <div className="h-2 w-full bg-rule/60" />
-      <div className="h-2 w-2/3 bg-rule/60" />
-      <div className="h-2 w-1/2 bg-rule/60" />
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const CardSkeleton = ({ delay }: { delay: number }) => (
+  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden animate-pulse" style={{ animationDelay: `${delay}ms` }}>
+    <div className="h-1 bg-slate-200 w-full" />
+    <div className="flex">
+      <div className="w-[88px] bg-slate-50 border-r border-slate-100 flex items-center justify-center py-5">
+        <div className="w-16 h-16 rounded-full bg-slate-200" />
+      </div>
+      <div className="flex-1 p-4 space-y-3">
+        <div className="h-4 bg-slate-200 rounded w-2/5" />
+        <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+          <div className="h-1.5 bg-slate-200 rounded-full w-3/4" />
+          <div className="h-1.5 bg-slate-200 rounded-full w-1/2" />
+        </div>
+        <div className="h-14 bg-slate-100 rounded-xl" />
+        <div className="h-16 bg-slate-100 rounded-xl" />
+      </div>
     </div>
   </div>
 );
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+const DebugPanel = ({ info }: { info: Record<string, unknown> }) => {
+  if (import.meta.env.PROD) return null;
+  return (
+    <details className="bg-slate-900 text-green-400 rounded-lg p-3 text-[11px] font-mono">
+      <summary className="cursor-pointer text-slate-400 mb-2">🔍 Debug info</summary>
+      <pre className="whitespace-pre-wrap break-all">{JSON.stringify(info, null, 2)}</pre>
+    </details>
+  );
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 const RecommendationsPage = () => {
   const { currentUser, patientProfile } = useAppState();
-  const reduced = useReducedMotion();
-
-  const [loading, setLoading]         = useState(true);
-  const [results, setResults]         = useState<ScoredStrain[]>([]);
-  const [condition, setCondition]     = useState("");
-  const [thcMax, setThcMax]           = useState<number | null>(null);
-  const [cbdMin, setCbdMin]           = useState<number | null>(null);
-  const [patientId, setPatientId]     = useState("");
-  const [blocked, setBlocked]         = useState("");
-  const [ratedCount, setRatedCount]   = useState(0);
-  const [screened, setScreened]       = useState(0);
+  const [loading, setLoading]                   = useState(true);
+  const [recommendations, setRecommendations]   = useState<ScoredStrain[]>([]);
+  const [conditionLabel, setConditionLabel]     = useState("");
+  const [feedbackCoverage, setFeedbackCoverage] = useState(0);
+  const [resolvedPatientId, setResolvedPatientId] = useState("");
+  const [constraintWarning, setConstraintWarning] = useState("");
+  const [debugInfo, setDebugInfo]               = useState<Record<string, unknown>>({});
 
   useEffect(() => {
-    const run = async () => {
+    const generate = async () => {
       setLoading(true);
       try {
         let pid: string | null = null;
@@ -671,7 +668,10 @@ const RecommendationsPage = () => {
           }
         }
 
-        let own = !!profile;
+        // Track whether this is the logged-in patient's own profile.
+        // Only then do we log usage / persist recommendations against it.
+        let isOwnProfile = !!profile;
+
         // Demo fallback: show *some* seeded profile so the exhibition build has
         // something to display. Deliberately skipped when a read failed — it
         // would silently present another patient's clinical data as if it were
@@ -681,24 +681,25 @@ const RecommendationsPage = () => {
             "recommendations: demo fallback profile",
             supabase.from("patient_profiles").select("*").limit(1).maybeSingle());
           profile = r.data;
-          pid = (profile?.patient_id as string) ?? null;
-          own = false;
+          pid = profile?.patient_id as string ?? null;
+          isOwnProfile = false; // demo fallback — someone else's profile
         }
 
         if (!profile && profileReadFailed) {
-          setBlocked(
+          setConstraintWarning(
             "Your clinical profile could not be loaded, so no recommendation was generated. This is a connection or permissions failure, not an empty profile — reload the page, and check the browser console if it persists.",
           );
-          setResults([]);
+          setRecommendations([]);
           return;
         }
-        if (pid && own) setPatientId(pid);
 
-        const conditions = ((profile?.medical_conditions as string) ?? "").toLowerCase();
-        const age = (profile?.age as number) ?? 40;
-        setCondition((profile?.medical_conditions as string) || "");
+        if (pid && isOwnProfile) setResolvedPatientId(pid);
 
-        const [strainsRes, consRes, feedbackIndex, conditionIndex] = await Promise.all([
+        const conditions = (profile?.medical_conditions as string ?? "").toLowerCase();
+        const age        = (profile?.age as number) ?? 40;
+        setConditionLabel((profile?.medical_conditions as string) || "");
+
+        const [strainsRes, constraintsRes, feedbackIndex, conditionIndex] = await Promise.all([
           readOr<any[]>("recommendations: strain catalogue", [],
             supabase.from("strains").select("*")),
           pid
@@ -710,153 +711,137 @@ const RecommendationsPage = () => {
           fetchFeedbackIndex(conditions),
           fetchConditionIndex(),
         ]);
-        const strains = strainsRes.data;
-        const cons = consRes.data;
+        const allStrains    = strainsRes.data;
+        const constraintsRow = constraintsRes.data;
 
         // Constraints drive the safety filter. If that read failed we cannot
         // assert the licensed window holds, so we refuse rather than score
         // against limits we could not confirm.
-        if (consRes.failed) {
-          setBlocked(
+        if (constraintsRes.failed) {
+          setConstraintWarning(
             "Your licence limits could not be loaded, so no recommendation was generated. Recommending without confirming your THC ceiling would not be safe — reload the page to try again.",
           );
-          setResults([]);
+          setRecommendations([]);
           return;
         }
 
         if (strainsRes.failed) {
-          setBlocked(
+          setConstraintWarning(
             "The strain catalogue could not be loaded, so no recommendation was generated. This is a connection failure rather than an empty catalogue — reload the page to try again.",
           );
-          setResults([]);
+          setRecommendations([]);
           return;
         }
 
-        const tMax = (cons as any)?.thc_max ?? null;
-        const cMin = (cons as any)?.cbd_min ?? null;
-        setThcMax(tMax); setCbdMin(cMin);
+        const thcMax: number | null = (constraintsRow as any)?.thc_max ?? null;
+        const cbdMin: number | null = (constraintsRow as any)?.cbd_min ?? null;
 
-        if (!strains?.length) return;
-        setScreened(strains.length);
+        setDebugInfo({ pid, conditions, age, thcMax, cbdMin, strainsCount: allStrains?.length ?? 0, feedbackIndexSize: feedbackIndex.size });
 
-        const pool = strains.filter((s) => {
-          if (tMax !== null && s.thc_level > tMax) return false;
-          if (cMin !== null && s.cbd_level < cMin) return false;
+        if (!allStrains?.length) return;
+
+        const pool = allStrains.filter((s) => {
+          if (thcMax !== null && s.thc_level > thcMax) return false;
+          if (cbdMin !== null && s.cbd_level < cbdMin) return false;
           return true;
         });
 
-        // Clinical safety: constraints are never silently bypassed.
+        // Clinical safety: never silently bypass THC/CBD constraints.
+        // If nothing qualifies, show an explicit message instead of unsafe strains.
         if (pool.length === 0) {
-          setBlocked(
-            `No strain in the catalogue sits inside your licensed window of THC ≤ ${pctFmt(tMax)} and CBD ≥ ${pctFmt(cMin)}. Ask your doctor to review the limits on your licence.`,
+          setConstraintWarning(
+            `No strain satisfies your clinical constraints (THC ≤ ${thcMax ?? "—"}% / CBD ≥ ${cbdMin ?? "—"}%). ` +
+            `Please review your constraints with your physician.`,
           );
-          setResults([]);
+          setRecommendations([]);
           return;
         }
-        setBlocked("");
+        setConstraintWarning("");
 
-        const scored = scoreStrains(pool, conditions, age, tMax, cMin, feedbackIndex, conditionIndex);
-        const top = scored.filter((s) => s.matchScore > 0)
-          .sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
+        const scored = scoreStrains(pool, conditions, age, thcMax, cbdMin, feedbackIndex, conditionIndex);
+        const top3   = scored.filter((s) => s.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
 
-        setRatedCount(top.filter((s) => s.feedbackCount > 0).length);
-        setResults(top);
+        setFeedbackCoverage(top3.filter((s) => s.feedbackCount > 0).length);
+        setRecommendations(top3);
 
-        if (pid && own) await persistRecommendations(pid, top);
+        // Close the loop: save the generated set so doctors can review/approve it
+        if (pid && isOwnProfile) await persistRecommendations(pid, top3);
       } catch (err) {
         console.error("Recommendation error:", err);
       } finally {
         setLoading(false);
       }
     };
-    run();
+    generate();
   }, [currentUser, patientProfile]);
 
   return (
-    <div className="max-w-xl mx-auto py-2">
-      {/* Masthead — reads like the header of a clinical report */}
-      <header className="pb-5 mb-6 border-b-2 border-ink">
-        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
-          Decision support · rule-based
-        </p>
-        <h1 className="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
-          Strains that fit your profile
-        </h1>
-        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 font-data text-[11px]">
-          {condition && (
-            <div className="flex gap-2">
-              <dt className="text-ink/40">Indication</dt>
-              <dd className="text-ink/75 capitalize">{condition}</dd>
-            </div>
-          )}
-          {(thcMax !== null || cbdMin !== null) && (
-            <div className="flex gap-2">
-              <dt className="text-ink/40">Licence</dt>
-              <dd className="text-ink/75">
-                {thcMax !== null && <span className="text-resin">THC ≤ {pctFmt(thcMax)}</span>}
-                {thcMax !== null && cbdMin !== null && <span className="text-ink/30"> · </span>}
-                {cbdMin !== null && <span className="text-clinic">CBD ≥ {pctFmt(cbdMin)}</span>}
-              </dd>
-            </div>
-          )}
-          {!loading && results.length > 0 && (
-            <>
-              <div className="flex gap-2">
-                <dt className="text-ink/40">Matches</dt>
-                <dd className="text-ink/75">
-                  {results.length} of {screened} screened
-                </dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="text-ink/40">With patient reports</dt>
-                <dd className="text-ink/75">{ratedCount}</dd>
-              </div>
+    <div className="max-w-2xl mx-auto space-y-5 py-2">
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[11px] font-semibold rounded-full px-3 py-1 mb-3 uppercase tracking-wide">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+          Clinical engine · feedback-enhanced
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-1.5 tracking-tight">Your personalised matches</h1>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          {conditionLabel ? (
+            <>Optimised for:
+              <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                <Heart className="h-3 w-3" />{conditionLabel}
+              </span>
             </>
+          ) : "Based on your medical profile"}
+          {feedbackCoverage > 0 && !loading && (
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium px-2.5 py-0.5 rounded-full">
+              <Star className="h-3 w-3 fill-amber-400" />
+              {feedbackCoverage} of 3 enhanced by community data
+            </span>
           )}
-        </dl>
-      </header>
+        </div>
+      </div>
+
+      <DebugPanel info={debugInfo} />
 
       {loading ? (
-        <div className="space-y-4"><Skeleton /><Skeleton /><Skeleton /></div>
-      ) : blocked ? (
-        <div className="border-l-2 border-flag pl-4 py-1">
-          <p className="font-data text-[10px] uppercase tracking-[0.14em] text-flag">Outside your licence</p>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink/75">{blocked}</p>
-        </div>
-      ) : results.length === 0 ? (
-        <div className="border-l-2 border-rule pl-4 py-1">
-          <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Nothing to show yet</p>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink/75">
-            The engine needs an indication to match against. Add one to your profile —
-            chronic pain, anxiety and insomnia are the best supported today.
-          </p>
-          <a
-            href="/patient-input"
-            className="mt-3 inline-flex items-center gap-1.5 font-data text-[11px] text-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
-          >
-            Edit your profile <ArrowRight className="h-3 w-3" />
-          </a>
-        </div>
+        <div className="space-y-4">{[0,150,300].map((d) => <CardSkeleton key={d} delay={d} />)}</div>
+      ) : constraintWarning ? (
+        <Alert className="bg-amber-50 border-amber-200 rounded-2xl animate-in fade-in duration-500">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800 text-sm">{constraintWarning}</AlertDescription>
+        </Alert>
+      ) : recommendations.length === 0 ? (
+        <Alert className="bg-blue-50 border-blue-200 rounded-2xl animate-in fade-in duration-500">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-700 text-sm">
+            No match found. Try updating your medical profile with conditions like "Chronic Pain", "Insomnia", or "Anxiety".
+          </AlertDescription>
+        </Alert>
       ) : (
         <div className="space-y-4">
-          {results.map((s, i) => (
+          {recommendations.map((strain, i) => (
             <StrainCard
-              key={s.id} strain={s} rank={i + 1}
-              thcMax={thcMax} cbdMin={cbdMin}
-              patientId={patientId} revealDelay={i * 140} reduced={reduced}
+              key={strain.id}
+              strain={strain}
+              rank={i + 1}
+              revealDelay={i * 180}
+              patientId={resolvedPatientId}
             />
           ))}
         </div>
       )}
 
-      {!loading && results.length > 0 && (
-        <footer className="mt-6 pt-4 border-t border-rule flex gap-3">
-          <AlertCircle className="h-3.5 w-3.5 text-ink/35 shrink-0 mt-0.5" />
-          <p className="text-[12px] leading-relaxed text-ink/50">
-            These matches come from clinical rules and ratings other patients have submitted.
-            They go to your doctor for approval before you act on them.
+      {!loading && recommendations.length > 0 && (
+        <>
+          <p className="text-[11px] text-slate-400 text-center animate-in fade-in duration-700">
+            💡 Log a usage session after using a strain, then rate it in Feedback
           </p>
-        </footer>
+          <div className="flex gap-3 items-start bg-amber-50 border border-amber-200 rounded-2xl p-3.5 animate-in fade-in duration-700">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              <strong className="font-semibold">Medical disclaimer:</strong> Recommendations are generated by a clinical algorithm enhanced with anonymised community feedback. Final treatment decisions require physician approval.
+            </p>
+          </div>
+        </>
       )}
     </div>
   );
