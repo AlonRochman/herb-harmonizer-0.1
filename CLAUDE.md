@@ -143,8 +143,27 @@ enough to resin/clinic to read as THC and CBD on a card showing both, while a
 terpene is neither a cannabinoid nor a risk. Its five-star rating was **deleted,
 not restyled** — score and count were both `Math.random()`, rerolled on every
 filter change, and the mono face on that page now means "measured". Same call as
-the % match ring. **Still on the old emerald/shadcn look: InfoCenterPage,
-Index.** Those are the only pages left to roll the tokens onto.
+the % match ring.
+
+**The rollout is complete (2026-08-03).** Every page and shared component is on
+the tokens; `grep -E '(emerald|slate|teal|amber|purple|blue|rose)-[0-9]'` over
+`src/` returns nothing, and that grep is the regression check. The shell was the
+last big gap and mattered most: the navbar is on every screen, and `App.tsx`
+was still `bg-slate-50` under pages that assume paper. The navbar now carries
+the same `border-b-2 border-ink` masthead rule the report pages open with, so
+the nav reads as part of the same document.
+
+Rules that settled while rolling it out:
+- **Role is a route, not a clinical reading.** Doctor vs patient never gets a
+  colour (login demo buttons, the navbar role pill, Index tool tiles).
+- **flag is for genuine risk**, not for form friction. Dosage safety notes,
+  licence/load failures and the prescription disclaimer take flag; a
+  required-field asterisk does not.
+- **An unread count is not a clinical risk** — the bell badge is ink, not red.
+- **Documents are not cannabinoids.** The MOH licence block and the T/C category
+  code are ink; the THC and CBD numbers inside them carry resin and clinic.
+- **Nominal categories get typography, not hue** — indica/sativa/hybrid,
+  experience level, notification kind, terpene names.
 
 ## Roles
 
@@ -222,10 +241,27 @@ Done 2026-08-03 (third session):
   Design language for the two colour fixes and the one deletion.
 - The catalogue's four range inputs gained aria-labels; they had none.
 
+Done 2026-08-03 (fourth session) — rollout finished:
+- App shell + Navbar + LoadError + AccessibilityWidget on the tokens. This was
+  the actual reason the restyled pages looked like a different product.
+- PatientInput, Dosage, Licence and Info Centre restyled. Every flow is
+  untouched: the profile upsert, calculate(), validateIsraeliId and the
+  constraints upsert are byte-identical.
+- **Index was rebuilt, not restyled.** It was a storefront — marketing hero
+  ("Online ordering"), Flower/Oils/Joints/Mini tiles, "Price drops / New
+  arrivals" chips, a price-comparison feature strip and a "Subscribe to
+  updates" CTA. None of it exists in this system. It is now masthead +
+  formulary search + the role tool grid. The removed navigation was already
+  broken: the tiles passed `/strains?cat=`, which the catalogue never reads,
+  and the chips searched for the literal words "popular"/"price"/"new".
+- **Info Centre content was corrected against the engine**, not just recoloured.
+  It documented the deleted % match ring as a live feature ("70–98% Excellent"),
+  quoted point values that do not exist (+50 condition, +15 terpene; really
+  60/40/20 by evidence grade and 12), and claimed the engine surfaces strains
+  that worked for *similar patients* — the feedback index is scoped to the one
+  patient. If the engine's weights change, that FAQ is the thing that goes stale.
+
 Next candidates:
-1. Roll the clinical design language onto Info Centre, then Index — the last two
-   (Recommendations, Dashboard, Feedback, Login and Catalog are done). Shell
-   only — the flows in these pages are working and should not be refactored.
 2. Real RLS policies per `auth.uid()` (requires deciding doctor identity — the
    demo clinician has no Auth account).
 3. Role-guard the routes, and decide the doctor home (see Roles above).
