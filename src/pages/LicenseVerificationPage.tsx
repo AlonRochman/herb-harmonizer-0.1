@@ -28,39 +28,46 @@ const MOH_LICENSE_DB: Record<string, {
 };
 
 // ─── T/C category info ────────────────────────────────────────────────────────
-const CATEGORY_INFO: Record<string, { desc: string; color: string }> = {
-  "T22/C4":   { desc: "High THC — severe chronic pain, advanced insomnia", color: "text-amber-700 bg-amber-50 border-amber-200"   },
-  "T20/C4":   { desc: "Standard — chronic pain, anxiety, PTSD",            color: "text-teal-700   bg-teal-50   border-teal-200"   },
-  "T10/C10":  { desc: "Balanced — anxiety, inflammation, mild pain",        color: "text-blue-700   bg-blue-50   border-blue-200"   },
-  "T1/CBD":   { desc: "Near-zero THC — epilepsy, children",                 color: "text-purple-700 bg-purple-50 border-purple-200" },
+// The four categories were amber/teal/blue/violet. Amber and teal are resin and
+// clinic — and on this page, of all pages, a licence code tinted amber would
+// read as a THC value. The code is a document reference, so it is set as data
+// in ink; the actual THC and CBD numbers below it carry the cannabinoid colour.
+const CATEGORY_INFO: Record<string, { desc: string }> = {
+  "T22/C4":   { desc: "High THC — severe chronic pain, advanced insomnia" },
+  "T20/C4":   { desc: "Standard — chronic pain, anxiety, PTSD"            },
+  "T10/C10":  { desc: "Balanced — anxiety, inflammation, mild pain"       },
+  "T1/CBD":   { desc: "Near-zero THC — epilepsy, children"                },
 };
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 const Steps = ({ current }: { current: number }) => (
-  <div className="flex items-center gap-2 mb-8">
+  <div className="mb-8 flex items-center gap-2">
     {["Enter ID", "Verify", "Confirmed"].map((label, i) => {
       const step = i + 1;
       const done   = current > step;
       const active = current === step;
       return (
         <div key={label} className="flex items-center gap-2">
-          <div className={`flex items-center gap-2 ${active ? "opacity-100" : done ? "opacity-70" : "opacity-30"}`}>
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
-              done   ? "bg-emerald-600 text-white" :
-              active ? "bg-slate-900   text-white" :
-                       "bg-slate-200   text-slate-500"
+          <div className="flex items-center gap-2">
+            <div className={`flex h-6 w-6 items-center justify-center border font-data text-[11px] font-semibold transition-colors ${
+              done   ? "border-ink bg-ink text-paper" :
+              active ? "border-ink bg-white text-ink" :
+                       "border-rule bg-white text-ink/35"
             }`}>
               {done ? "✓" : step}
             </div>
-            <span className="text-[12px] font-medium text-slate-600 hidden sm:block">{label}</span>
+            <span className={`hidden font-data text-[10px] uppercase tracking-[0.1em] sm:block ${
+              active ? "text-ink" : done ? "text-ink/60" : "text-ink/35"
+            }`}>
+              {label}
+            </span>
           </div>
-          {i < 2 && <div className="w-8 h-px bg-slate-200" />}
+          {i < 2 && <div className="h-px w-8 bg-rule" />}
         </div>
       );
     })}
   </div>
 );
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const LicenseVerificationPage = () => {
   const navigate   = useNavigate();
@@ -168,45 +175,46 @@ const LicenseVerificationPage = () => {
   };
 
   const catInfo = licenseData ? CATEGORY_INFO[licenseData.category] : null;
-
   return (
-    <div className="max-w-md mx-auto py-4 space-y-2 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-md py-2 animate-in fade-in duration-500">
 
-      {/* Header */}
-      <div className="mb-6">
-        <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-semibold rounded-full px-3 py-1 mb-3 uppercase tracking-wide">
-          <ShieldCheck className="h-3 w-3" />
-          Ministry of Health · MOH Verification
-        </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-1">License verification</h1>
-        <p className="text-[13px] text-slate-400 leading-relaxed">
-          Enter your Israeli ID to automatically import your T/C cannabis license category and set your clinical constraints.
+      {/* ── MASTHEAD ─────────────────────────────────────────────────────── */}
+      <header className="mb-6 border-b-2 border-ink pb-5">
+        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+          Ministry of Health · MOH verification
         </p>
-      </div>
+        <h1 className="mt-2 flex items-center gap-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-ink/40" />
+          Licence verification
+        </h1>
+        <p className="mt-1 text-[13px] leading-relaxed text-ink/50">
+          Enter your Israeli ID to import your T/C cannabis licence category and set your clinical constraints.
+        </p>
+      </header>
 
       <Steps current={step} />
 
       {/* ── STEP 1: Enter ID ────────────────────────────────────────────── */}
       {step === 1 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+        <div className="space-y-4 border border-rule bg-white p-5">
 
-          <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <Lock className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-            <p className="text-[12px] text-slate-500 leading-relaxed">
-              Your ID is used only to verify your MOH cannabis license. It is not stored in our system.
+          <div className="flex items-start gap-3 border border-rule bg-paper p-3">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/35" />
+            <p className="text-[12px] leading-relaxed text-ink/55">
+              Your ID is used only to verify your MOH cannabis licence. It is not stored in our system.
             </p>
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 animate-in fade-in duration-200">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-red-700 leading-relaxed">{error}</p>
+            <div className="flex items-start gap-2 border border-flag/40 border-l-2 border-l-flag bg-flag/5 p-3 animate-in fade-in duration-200">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
+              <p className="text-[12px] leading-relaxed text-flag">{error}</p>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
-              <IdCard className="h-3.5 w-3.5" /> Israeli ID number (ת.ז)
+            <label className="flex items-center gap-1.5 font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">
+              <IdCard className="h-3 w-3" /> Israeli ID number (ת.ז)
             </label>
             <input
               type="text"
@@ -219,9 +227,9 @@ const LicenseVerificationPage = () => {
                 setError("");
               }}
               onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-              className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-[18px] font-mono tracking-[0.2em] text-center outline-none focus:ring-2 focus:ring-blue-400/40 focus:bg-white transition-all"
+              className="h-12 w-full border border-rule bg-white px-4 text-center font-data text-[18px] tracking-[0.2em] text-ink outline-none transition-colors placeholder:text-ink/20 focus:border-ink/40 focus:ring-1 focus:ring-ink/20"
             />
-            <p className="text-[11px] text-slate-400 text-center">
+            <p className="text-center font-data text-[10px] text-ink/35">
               Demo IDs: 206320988 · 209049857 · 123456789
             </p>
           </div>
@@ -229,112 +237,110 @@ const LicenseVerificationPage = () => {
           <button
             onClick={handleVerify}
             disabled={idNumber.length < 9 || isChecking}
-            className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="flex h-11 w-full items-center justify-center gap-2 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-50"
           >
             {isChecking
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking with MOH…</>
-              : <><ShieldCheck className="h-4 w-4" /> Verify license</>
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking with MOH…</>
+              : <><ShieldCheck className="h-3.5 w-3.5" /> Verify licence</>
             }
           </button>
         </div>
       )}
 
-      {/* ── STEP 2: Confirm license data ────────────────────────────────── */}
+      {/* ── STEP 2: Confirm licence data ────────────────────────────────── */}
       {step === 2 && licenseData && (
         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-400">
 
-          {/* MOH badge */}
-          <div className="bg-gradient-to-r from-blue-700 to-blue-800 rounded-2xl p-5 text-white relative overflow-hidden">
-            <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/5" />
-            <div className="flex items-start justify-between gap-3 relative z-10">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-200 mb-1">
-                  Ministry of Health — Cannabis License
+          {/* MOH record — an official document, so it is ink, not blue */}
+          <div className="bg-ink p-5 text-paper">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="mb-1 font-data text-[10px] uppercase tracking-[0.2em] text-paper/50">
+                  Ministry of Health — cannabis licence
                 </p>
-                <p className="text-[18px] font-bold leading-tight">{licenseData.name}</p>
-                <p className="text-[13px] text-blue-200 mt-1">
-                  Valid until: {new Date(licenseData.valid_until).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                <p className="font-display text-[18px] font-semibold leading-tight">{licenseData.name}</p>
+                <p className="mt-1 font-data text-[11px] text-paper/60">
+                  Valid until {new Date(licenseData.valid_until).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
                 </p>
               </div>
-              <div className="text-right shrink-0">
-                <ShieldCheck className="h-8 w-8 text-blue-300 mb-1" />
-                <p className="text-[10px] text-blue-300 font-medium">VERIFIED</p>
+              <div className="shrink-0 text-right">
+                <ShieldCheck className="mb-1 h-6 w-6 text-paper/70" />
+                <p className="font-data text-[9px] uppercase tracking-[0.12em] text-paper/60">Verified</p>
               </div>
             </div>
           </div>
 
-          {/* Category card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">License details</p>
+          {/* Licence details */}
+          <div className="space-y-3 border border-rule bg-white p-4">
+            <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Licence details</p>
 
             <div className="flex items-center justify-between">
-              <span className="text-[13px] text-slate-600">License category</span>
-              {catInfo && (
-                <span className={`font-mono font-bold text-[14px] px-3 py-1 rounded-full border ${catInfo.color}`}>
-                  {licenseData.category}
-                </span>
-              )}
+              <span className="text-[13px] text-ink/60">Licence category</span>
+              <span className="border border-ink/25 px-3 py-0.5 font-data text-[14px] font-semibold text-ink">
+                {licenseData.category}
+              </span>
             </div>
             {catInfo && (
-              <p className="text-[12px] text-slate-500 italic">{catInfo.desc}</p>
+              <p className="text-[12px] italic text-ink/50">{catInfo.desc}</p>
             )}
 
+            {/* The two limits every recommendation is filtered against */}
             <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-0.5">Max THC</p>
-                <p className="text-[20px] font-bold text-amber-700">{licenseData.thc_max}%</p>
+              <div className="border border-rule p-3 text-center">
+                <p className="mb-0.5 font-data text-[9px] uppercase tracking-[0.12em] text-resin">Max THC</p>
+                <p className="font-data text-[20px] font-semibold text-resin">{licenseData.thc_max}%</p>
               </div>
-              <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-600 mb-0.5">Min CBD</p>
-                <p className="text-[20px] font-bold text-teal-700">{licenseData.cbd_min}%</p>
+              <div className="border border-rule p-3 text-center">
+                <p className="mb-0.5 font-data text-[9px] uppercase tracking-[0.12em] text-clinic">Min CBD</p>
+                <p className="font-data text-[20px] font-semibold text-clinic">{licenseData.cbd_min}%</p>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[12px] text-slate-500">Monthly quota</span>
-              <span className="text-[13px] font-semibold text-slate-700">{licenseData.monthly_quota_g}g / month</span>
+            <div className="flex items-center justify-between border-t border-rule pt-2">
+              <span className="text-[12px] text-ink/50">Monthly quota</span>
+              <span className="font-data text-[12px] font-semibold text-ink">{licenseData.monthly_quota_g} g / month</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-slate-500">Primary condition</span>
-              <span className="text-[12px] font-medium text-slate-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-full">
+              <span className="text-[12px] text-ink/50">Primary condition</span>
+              <span className="border border-rule px-2.5 py-0.5 text-[12px] text-ink/70">
                 {licenseData.condition}
               </span>
             </div>
           </div>
 
           {/* What will be updated */}
-          <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl p-3.5">
-            <Info className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-[12px] text-emerald-700 leading-relaxed space-y-1">
-              <p className="font-semibold">Applying this will automatically:</p>
-              <p>• Set THC max to <strong>{licenseData.thc_max}%</strong> in your clinical constraints</p>
-              <p>• Set CBD min to <strong>{licenseData.cbd_min}%</strong></p>
-              <p>• Filter recommendations to strains within your license</p>
+          <div className="flex items-start gap-2.5 border border-rule bg-paper p-3.5">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/40" />
+            <div className="space-y-1 text-[12px] leading-relaxed text-ink/65">
+              <p className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/50">Applying this will:</p>
+              <p>• Set THC max to <span className="font-data font-semibold text-resin">{licenseData.thc_max}%</span> in your clinical constraints</p>
+              <p>• Set CBD min to <span className="font-data font-semibold text-clinic">{licenseData.cbd_min}%</span></p>
+              <p>• Filter recommendations to strains within your licence</p>
             </div>
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-red-700">{error}</p>
+            <div className="flex items-start gap-2 border border-flag/40 border-l-2 border-l-flag bg-flag/5 p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
+              <p className="text-[12px] text-flag">{error}</p>
             </div>
           )}
 
           <div className="flex gap-3">
             <button
               onClick={() => { setStep(1); setLicenseData(null); setIdNumber(""); }}
-              className="flex-1 h-11 rounded-xl border border-slate-200 text-slate-500 text-[13px] hover:bg-slate-50 transition-colors"
+              className="h-11 flex-1 border border-rule font-data text-[10px] uppercase tracking-[0.12em] text-ink/55 transition-colors hover:border-ink/35 hover:text-ink"
             >
               Back
             </button>
             <button
               onClick={handleApply}
               disabled={isSaving}
-              className="flex-1 h-11 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+              className="flex h-11 flex-1 items-center justify-center gap-2 bg-ink font-data text-[10px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-60"
             >
               {isSaving
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
-                : <><CheckCircle2 className="h-4 w-4" /> Apply to my profile</>
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+                : <><CheckCircle2 className="h-3.5 w-3.5" /> Apply to my profile</>
               }
             </button>
           </div>
@@ -343,25 +349,25 @@ const LicenseVerificationPage = () => {
 
       {/* ── STEP 3: Done ─────────────────────────────────────────────────── */}
       {step === 3 && licenseData && (
-        <div className="flex flex-col items-center py-8 gap-5 animate-in fade-in duration-500">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center">
-            <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-          </div>
-          <div className="text-center space-y-1">
-            <p className="text-[16px] font-bold text-slate-900">License verified ✓</p>
-            <p className="text-[13px] text-slate-500">
-              {licenseData.category} limits applied to your profile.
+        <div className="flex flex-col items-center gap-5 py-8 animate-in fade-in duration-500">
+          <CheckCircle2 className="h-8 w-8 text-ink" />
+          <div className="space-y-1 text-center">
+            <p className="font-display text-[16px] font-semibold text-ink">Licence verified ✓</p>
+            <p className="text-[13px] text-ink/55">
+              <span className="font-data">{licenseData.category}</span> limits applied to your profile.
             </p>
-            <p className="text-[12px] text-slate-400">
-              Your recommendations will now only include strains within THC ≤{licenseData.thc_max}% · CBD ≥{licenseData.cbd_min}%
+            <p className="font-data text-[11px] text-ink/45">
+              Recommendations will now only include{" "}
+              <span className="text-resin">THC ≤{licenseData.thc_max}%</span> ·{" "}
+              <span className="text-clinic">CBD ≥{licenseData.cbd_min}%</span>
             </p>
           </div>
-          <div className="flex gap-3 w-full max-w-xs">
+          <div className="flex w-full max-w-xs gap-3">
             <button
               onClick={() => navigate("/recommendations")}
-              className="flex-1 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 bg-ink font-data text-[10px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85"
             >
-              Get recommendations <ArrowRight className="h-3.5 w-3.5" />
+              Get recommendations <ArrowRight className="h-3 w-3" />
             </button>
           </div>
         </div>
