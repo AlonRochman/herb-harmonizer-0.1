@@ -23,13 +23,15 @@ const NAV_PATIENT = [
   { label: "Info Centre",     path: "/info",            icon: BookOpen        },
 ];
 
+// Mirrors DOCTOR_ACTIONS on the home page. Dosage and the Info Centre are
+// written in the second person for the patient ("your body weight", "your
+// personalised dose", "essential knowledge for new patients") and neither
+// touches a patient record, so they are not clinician tools.
 const NAV_DOCTOR = [
   { label: "Dashboard",   path: "/dashboard",     icon: BarChart3     },
   { label: "Profiling",   path: "/patient-input", icon: ClipboardList },
   { label: "Strains",     path: "/strains",       icon: Database      },
-  { label: "Dosage",      path: "/dosage",        icon: Scale         },
   { label: "Feedback",    path: "/feedback",      icon: MessageSquare },
-  { label: "Info Centre", path: "/info",          icon: BookOpen      },
 ];
 
 // ─── Notification types ───────────────────────────────────────────────────────

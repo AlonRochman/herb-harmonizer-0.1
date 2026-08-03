@@ -262,7 +262,9 @@ const ResultPanel = ({ result, method }: { result: DosageResult; method: Consump
           </div>
         </div>
         <p className="text-[12px] text-slate-500 leading-relaxed">
-          These limits will pre-fill your clinical constraints when you request a recommendation.
+          Guidance only. Recommendations are filtered against the THC/CBD limits on
+          your licence, not against these figures — bring them to your doctor if you
+          think your licensed window should change.
         </p>
       </div>
 
