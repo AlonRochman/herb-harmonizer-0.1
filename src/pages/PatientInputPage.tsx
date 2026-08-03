@@ -5,13 +5,27 @@ import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { supabase } from "../lib/supabaseClient";
 import { read, readOr } from "@/lib/supabaseRead";
 import LoadError from "@/components/LoadError";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Loader2, AlertCircle, User, Shield, Sparkles, Check } from "lucide-react";
 import { medicalConditions } from "@/data/mockData";
+
+// ─── Shared field styling ─────────────────────────────────────────────────────
+// shadcn's Input/Textarea/SelectTrigger keep their rounded, ringed look, which
+// is the single loudest way this page read as a different product. One class
+// string squares them off onto rule/ink.
+const fieldCls =
+  "rounded-none border-rule bg-white text-[13px] text-ink placeholder:text-ink/25 " +
+  "focus-visible:ring-1 focus-visible:ring-ink/20 focus-visible:border-ink/40";
+
+const labelCls = "font-data text-[10px] uppercase tracking-[0.14em] text-ink/45";
+
+// A required marker is a constraint on the form, not a clinical risk, so it is
+// ink — flag stays reserved for a value that endangers a limit.
+const Req = () => <span className="text-ink/35">*</span>;
+const Opt = () => <span className="font-normal normal-case tracking-normal text-ink/30">optional</span>;
 
 // ─── Step definitions ─────────────────────────────────────────────────────────
 const STEPS = [
@@ -21,33 +35,32 @@ const STEPS = [
 ];
 
 // ─── Progress stepper ─────────────────────────────────────────────────────────
+// Rank marks in the instrument language: a completed step is solid ink, the
+// current step is outlined, and the rest are rule.
 const Stepper = ({ current }: { current: number }) => (
-  <div className="flex items-center gap-0 mb-8">
+  <div className="mb-8 flex items-center gap-0">
     {STEPS.map((step, i) => {
       const done    = current > step.id;
       const active  = current === step.id;
-      const Icon    = step.icon;
       return (
-        <div key={step.id} className="flex items-center flex-1 last:flex-none">
-          {/* Circle */}
+        <div key={step.id} className="flex flex-1 items-center last:flex-none">
           <div className="flex flex-col items-center gap-1.5">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold border-2 transition-all duration-300 ${
-              done   ? "bg-emerald-700 border-emerald-700 text-white" :
-              active ? "bg-white border-emerald-700 text-emerald-700" :
-                       "bg-white border-slate-200 text-slate-400"
+            <div className={`flex h-8 w-8 items-center justify-center border font-data text-[12px] font-semibold transition-colors ${
+              done   ? "border-ink bg-ink text-paper" :
+              active ? "border-ink bg-white text-ink" :
+                       "border-rule bg-white text-ink/35"
             }`}>
               {done ? <Check className="h-3.5 w-3.5" /> : step.id}
             </div>
-            <span className={`text-[11px] font-medium whitespace-nowrap hidden sm:block ${
-              active ? "text-emerald-700" : done ? "text-slate-600" : "text-slate-400"
+            <span className={`hidden whitespace-nowrap font-data text-[10px] uppercase tracking-[0.1em] sm:block ${
+              active ? "text-ink" : done ? "text-ink/60" : "text-ink/35"
             }`}>
               {step.label}
             </span>
           </div>
-          {/* Connector line */}
           {i < STEPS.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-2 mb-5 transition-all duration-300 ${
-              current > step.id ? "bg-emerald-700" : "bg-slate-200"
+            <div className={`mx-2 mb-5 h-px flex-1 transition-colors ${
+              current > step.id ? "bg-ink" : "bg-rule"
             }`} />
           )}
         </div>
@@ -66,21 +79,21 @@ const ConditionPicker = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       list="conditions-list"
-      className="text-[13px] mb-2"
+      className={`${fieldCls} mb-2`}
     />
     <datalist id="conditions-list">
       {medicalConditions.map((c) => <option key={c} value={c} />)}
     </datalist>
-    <div className="flex flex-wrap gap-1.5 mt-2">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {medicalConditions.slice(0, 6).map((c) => (
         <button
           key={c}
           type="button"
           onClick={() => onChange(c)}
-          className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+          className={`border px-2.5 py-1 text-[11px] transition-colors ${
             value === c
-              ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+              ? "border-ink bg-ink text-paper"
+              : "border-rule bg-white text-ink/55 hover:border-ink/35 hover:text-ink"
           }`}
         >
           {c}
@@ -92,7 +105,7 @@ const ConditionPicker = ({
 
 // ─── Inline field error ───────────────────────────────────────────────────────
 const FieldError = ({ msg }: { msg?: string }) =>
-  msg ? <p className="text-[11px] text-red-500 mt-1">{msg}</p> : null;
+  msg ? <p className="mt-1 font-data text-[10px] uppercase tracking-[0.1em] text-flag">{msg}</p> : null;
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const PatientInputPage = () => {
@@ -308,46 +321,53 @@ const PatientInputPage = () => {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-2 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-xl py-2 animate-in fade-in duration-500">
 
       {/* Stepper */}
       <Stepper current={step} />
 
       {/* ── Step 3 — success ─────────────────────────────────────────────── */}
       {step === 3 && (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
-            <Check className="h-7 w-7 text-emerald-600" />
-          </div>
-          <p className="text-[15px] font-medium text-slate-800">Profile saved</p>
-          <p className="text-[13px] text-slate-400">Generating your recommendations…</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-20">
+          <Check className="h-6 w-6 text-ink" />
+          <p className="text-[15px] font-medium text-ink">Profile saved</p>
+          <p className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/40">
+            Generating your recommendations…
+          </p>
         </div>
       )}
 
       {/* ── Step 1 — patient details ──────────────────────────────────────── */}
       {step === 1 && (
         <div className="space-y-5">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Patient details</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Basic medical profile for the recommendation engine</p>
-          </div>
+          <header className="border-b-2 border-ink pb-4">
+            <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+              Step 1 of 2
+            </p>
+            <h1 className="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+              Patient details
+            </h1>
+            <p className="mt-1 text-[13px] text-ink/50">
+              Basic medical profile for the recommendation engine
+            </p>
+          </header>
 
           {/* Load existing — only shown for doctors */}
           {isDoctor && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2">
-              <p className="text-[12px] font-medium text-emerald-700">Load existing patient</p>
+            <div className="space-y-2 border border-rule bg-white p-4">
+              <p className={labelCls}>Load existing patient</p>
               {patientsFailed && <LoadError what="the patient list" />}
               {isLoading ? (
-                <div className="flex items-center gap-2 text-[13px] text-slate-400">
+                <div className="flex items-center gap-2 font-data text-[11px] text-ink/40">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading patients…
                 </div>
               ) : (
                 <Select value={selectedPatientId} onValueChange={handleSelectPatient}>
-                  <SelectTrigger className="bg-white text-[13px]">
+                  <SelectTrigger className={fieldCls}>
                     <SelectValue placeholder="Select patient or enter manually…" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="manual" className="text-emerald-700 font-medium">
+                    <SelectItem value="manual" className="font-data text-[12px]">
                       + New patient (manual)
                     </SelectItem>
                     {dbPatients.map((p) => (
@@ -364,18 +384,18 @@ const PatientInputPage = () => {
           {/* Age + Gender */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Age <span className="text-red-400">*</span></Label>
+              <Label className={labelCls}>Age <Req /></Label>
               <Input
                 type="number" placeholder="e.g. 45"
                 value={age} onChange={(e) => setAge(e.target.value)}
-                className={`text-[13px] ${errors.age ? "border-red-300" : ""}`}
+                className={`${fieldCls} font-data ${errors.age ? "border-flag" : ""}`}
               />
               <FieldError msg={errors.age} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Gender <span className="text-red-400">*</span></Label>
+              <Label className={labelCls}>Gender <Req /></Label>
               <Select value={gender} onValueChange={setGender}>
-                <SelectTrigger className={`text-[13px] ${errors.gender ? "border-red-300" : ""}`}>
+                <SelectTrigger className={`${fieldCls} ${errors.gender ? "border-flag" : ""}`}>
                   <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,89 +410,90 @@ const PatientInputPage = () => {
 
           {/* Condition */}
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Primary medical condition <span className="text-red-400">*</span></Label>
+            <Label className={labelCls}>Primary medical condition <Req /></Label>
             <ConditionPicker value={condition} onChange={setCondition} />
             <FieldError msg={errors.condition} />
           </div>
 
           {/* Sensitivities */}
           <div className="space-y-1.5">
-            <Label className="text-[13px]">
-              Known allergies / sensitivities{" "}
-              <span className="text-slate-400 font-normal">(optional)</span>
-            </Label>
+            <Label className={labelCls}>Known allergies / sensitivities <Opt /></Label>
             <Textarea
               placeholder="e.g. Latex, certain terpenes…"
               value={sensitivities}
               onChange={(e) => setSensitivities(e.target.value)}
-              className="text-[13px] resize-none" rows={2}
+              className={`${fieldCls} resize-none`} rows={2}
             />
           </div>
 
           {/* Preferences */}
           <div className="space-y-1.5">
-            <Label className="text-[13px]">
-              Treatment preferences{" "}
-              <span className="text-slate-400 font-normal">(optional)</span>
-            </Label>
+            <Label className={labelCls}>Treatment preferences <Opt /></Label>
             <Textarea
               placeholder="e.g. Non-smoking, evening use only…"
               value={preferences}
               onChange={(e) => setPreferences(e.target.value)}
-              className="text-[13px] resize-none" rows={2}
+              className={`${fieldCls} resize-none`} rows={2}
             />
           </div>
 
-          <Button
-            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
+          <button
+            className="flex h-10 w-full items-center justify-center gap-2 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85"
             onClick={handleNext}
           >
-            Continue <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+            Continue <ArrowRight className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
       {/* ── Step 2 — clinical constraints ────────────────────────────────── */}
       {step === 2 && (
         <div className="space-y-5">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Clinical constraints</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Set safe limits for the recommendation engine</p>
-          </div>
+          <header className="border-b-2 border-ink pb-4">
+            <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
+              Step 2 of 2
+            </p>
+            <h1 className="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
+              Clinical constraints
+            </h1>
+            <p className="mt-1 text-[13px] text-ink/50">
+              Set safe limits for the recommendation engine
+            </p>
+          </header>
 
-          {/* License badge */}
+          {/* License badge — a licence is a document, not a cannabinoid */}
           {licenseInfo && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
-              <Shield className="h-4 w-4 text-blue-600 shrink-0" />
-              <p className="text-[12px] font-medium text-blue-700">{licenseInfo} — limits auto-applied</p>
+            <div className="flex items-center gap-2 border border-rule bg-white px-4 py-2.5">
+              <Shield className="h-3.5 w-3.5 shrink-0 text-ink/45" />
+              <p className="font-data text-[11px] text-ink/70">{licenseInfo} — limits auto-applied</p>
             </div>
           )}
 
           {/* Global submit error */}
           {errors.submit && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[13px] text-red-700">{errors.submit}</p>
+            <div className="flex items-start gap-2 border border-flag/40 border-l-2 border-l-flag bg-flag/5 p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
+              <p className="text-[13px] text-flag">{errors.submit}</p>
             </div>
           )}
 
-          {/* THC / CBD */}
+          {/* THC / CBD — the two ceilings the engine filters on */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Max THC (%) <span className="text-red-400">*</span></Label>
+              <Label className={`${labelCls} text-resin`}>Max THC (%) <Req /></Label>
               <Input
                 type="number" placeholder="e.g. 20"
                 value={thcMax} onChange={(e) => setThcMax(e.target.value)}
-                className={`text-[13px] ${errors.thcMax ? "border-red-300" : ""}`}
+                className={`${fieldCls} font-data ${errors.thcMax ? "border-flag" : ""}`}
               />
               <FieldError msg={errors.thcMax} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Min CBD (%) <span className="text-red-400">*</span></Label>
+              <Label className={`${labelCls} text-clinic`}>Min CBD (%) <Req /></Label>
               <Input
                 type="number" placeholder="e.g. 4"
                 value={cbdMin} onChange={(e) => setCbdMin(e.target.value)}
-                className={`text-[13px] ${errors.cbdMin ? "border-red-300" : ""}`}
+                className={`${fieldCls} font-data ${errors.cbdMin ? "border-flag" : ""}`}
               />
               <FieldError msg={errors.cbdMin} />
             </div>
@@ -480,52 +501,49 @@ const PatientInputPage = () => {
 
           {/* Contraindications */}
           <div className="space-y-1.5">
-            <Label className="text-[13px]">
-              Contraindications{" "}
-              <span className="text-slate-400 font-normal">(optional)</span>
-            </Label>
+            <Label className={labelCls}>Contraindications <Opt /></Label>
             <Textarea
               placeholder="e.g. Cardiovascular conditions, psychosis history…"
               value={contraindications}
               onChange={(e) => setContraindications(e.target.value)}
-              className="text-[13px] resize-none" rows={3}
+              className={`${fieldCls} resize-none`} rows={3}
             />
           </div>
 
-          {/* Summary box */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-2">Summary</p>
-            <div className="grid grid-cols-2 gap-y-1 text-[13px]">
-              <span className="text-slate-500">Condition</span>
-              <span className="font-medium text-slate-800 truncate">{condition || "—"}</span>
-              <span className="text-slate-500">Age</span>
-              <span className="font-medium text-slate-800">{age || "—"}</span>
-              <span className="text-slate-500">Max THC</span>
-              <span className="font-medium text-slate-800">{thcMax ? `${thcMax}%` : "—"}</span>
-              <span className="text-slate-500">Min CBD</span>
-              <span className="font-medium text-slate-800">{cbdMin ? `${cbdMin}%` : "—"}</span>
-            </div>
+          {/* Summary — the values that will be written, set as data */}
+          <div className="border border-rule bg-white p-4">
+            <p className={`${labelCls} mb-2`}>Summary</p>
+            <dl className="grid grid-cols-2 gap-y-1 text-[12px]">
+              <dt className="text-ink/45">Condition</dt>
+              <dd className="truncate font-data text-ink">{condition || "—"}</dd>
+              <dt className="text-ink/45">Age</dt>
+              <dd className="font-data text-ink">{age || "—"}</dd>
+              <dt className="text-ink/45">Max THC</dt>
+              <dd className="font-data text-resin">{thcMax ? `${thcMax}%` : "—"}</dd>
+              <dt className="text-ink/45">Min CBD</dt>
+              <dd className="font-data text-clinic">{cbdMin ? `${cbdMin}%` : "—"}</dd>
+            </dl>
           </div>
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              variant="outline" className="w-1/3 text-[13px]"
+            <button
+              className="flex h-10 w-1/3 items-center justify-center gap-1.5 border border-rule font-data text-[11px] uppercase tracking-[0.12em] text-ink/65 transition-colors hover:border-ink/35 hover:text-ink disabled:opacity-60"
               onClick={() => { setStep(1); setErrors({}); }}
               disabled={isSaving}
             >
-              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
-            </Button>
-            <Button
-              className="w-2/3 bg-emerald-700 hover:bg-emerald-800 text-white text-[13px]"
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </button>
+            <button
+              className="flex h-10 w-2/3 items-center justify-center gap-2 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-60"
               onClick={handleSubmit}
               disabled={isSaving}
             >
               {isSaving
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
-                : <>Save & generate <ArrowRight className="ml-2 h-3.5 w-3.5" /></>
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+                : <>Save &amp; generate <ArrowRight className="h-3.5 w-3.5" /></>
               }
-            </Button>
+            </button>
           </div>
         </div>
       )}
