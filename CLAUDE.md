@@ -130,8 +130,11 @@ The dashboard now follows the same language: a local `Panel` replaces shadcn
 `Card`, THC/CBD chips use resin/clinic, review status uses ink weight with flag
 reserved for the negative verdict, and the efficacy chart is ink (efficacy is not
 a cannabinoid, so clinic would have been wrong). `match_score` is labelled "rule
-sum", never "%". Remaining pages (Feedback, Login, Catalog, Info Centre) still
-use the old emerald/shadcn look — rolling the tokens out is an open task.
+sum", never "%". Feedback followed on 2026-08-03 (efficacy on the ink scale with
+flag at the poor end; THC/CBD chips moved off amber/teal, which were close
+enough to resin/clinic to mislead). **Still on the old emerald/shadcn look:
+LoginPage, StrainsCatalogPage, InfoCenterPage, Index.** Those are the only pages
+left to roll the tokens onto.
 
 ## Roles
 
@@ -195,14 +198,17 @@ Done 2026-08-03 (second session):
   RecommendationsPage no longer falls back to a seeded stranger's profile when
   the own-profile read *fails*, and a failed constraints read blocks
   recommendation instead of scoring against unconfirmed limits.
-- Dashboard restyled in the clinical language; approve/reject flow untouched.
+- Dashboard and Feedback restyled in the clinical language; the approve/reject
+  and feedback-submit flows were left untouched.
 - Doctor nav scoped to clinician tools; dosage page no longer claims its caps
   pre-fill clinical_constraints (they never did).
 - README rewritten around the algorithm with verified line links.
 - bun.lock / bun.lockb deleted; npm is the single lockfile.
 
 Next candidates:
-1. Roll the clinical design language out to Feedback / Catalog / Login / Info.
+1. Roll the clinical design language onto Login, then Catalog, then Info/Index
+   (Recommendations, Dashboard and Feedback are done). Shell only — the flows
+   in these pages are working and should not be refactored.
 2. Real RLS policies per `auth.uid()` (requires deciding doctor identity — the
    demo clinician has no Auth account).
 3. Role-guard the routes, and decide the doctor home (see Roles above).
