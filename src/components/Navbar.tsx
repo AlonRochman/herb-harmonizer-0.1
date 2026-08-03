@@ -44,11 +44,14 @@ interface Notif {
   action?: { label: string; path: string };
 }
 
+// The four notification kinds used to carry emerald/amber/teal/blue tiles.
+// Amber and teal are resin and clinic at a glance, and none of these rows is a
+// cannabinoid reading — the kind is already carried by its icon and its words.
 const NOTIF_ICONS = {
-  approval:     { icon: CheckCircle2, bg: "bg-emerald-50", color: "text-emerald-600" },
-  feedback_due: { icon: Star,         bg: "bg-amber-50",   color: "text-amber-600"   },
-  new_strain:   { icon: Leaf,         bg: "bg-teal-50",    color: "text-teal-600"    },
-  reminder:     { icon: AlertCircle,  bg: "bg-blue-50",    color: "text-blue-600"    },
+  approval:     CheckCircle2,
+  feedback_due: Star,
+  new_strain:   Leaf,
+  reminder:     AlertCircle,
 };
 
 // ─── Read-state persistence ───────────────────────────────────────────────────
@@ -211,69 +214,67 @@ const NotificationBell = ({ patientId }: { patientId: string | null }) => {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors"
+        className="relative p-2 transition-colors hover:bg-paper"
         aria-label="Notifications"
       >
-        <Bell className="h-5 w-5 text-slate-500" />
+        <Bell className="h-4 w-4 text-ink/50" />
+        {/* An unread count is not a clinical risk, so it is ink, not flag. */}
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center bg-ink font-data text-[9px] font-semibold text-paper">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-76 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+        <div className="absolute right-0 top-11 z-50 overflow-hidden border border-rule bg-white shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
           style={{ width: 300 }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <span className="text-[13px] font-semibold text-slate-800">Notifications</span>
+          <div className="flex items-center justify-between border-b border-rule px-4 py-2.5">
+            <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">Notifications</span>
             <div className="flex items-center gap-3">
               {unread > 0 && (
-                <button onClick={markAll} className="text-[11px] text-slate-400 hover:text-slate-600">
+                <button onClick={markAll} className="font-data text-[10px] uppercase tracking-[0.1em] text-ink/40 transition-colors hover:text-ink">
                   Mark all read
                 </button>
               )}
-              <button onClick={() => setOpen(false)}>
-                <X className="h-4 w-4 text-slate-400" />
+              <button onClick={() => setOpen(false)} aria-label="Close notifications">
+                <X className="h-4 w-4 text-ink/35 transition-colors hover:text-ink" />
               </button>
             </div>
           </div>
 
           {failed ? (
-            <div className="flex flex-col items-center py-10 text-slate-500 gap-2">
-              <AlertCircle className="h-6 w-6 text-red-400" />
+            <div className="flex flex-col items-center gap-2 py-10 text-flag">
+              <AlertCircle className="h-5 w-5" />
               <p className="text-[12px]">Couldn't load notifications</p>
-              <button onClick={load} className="text-[11px] text-emerald-600 font-semibold hover:underline">
+              <button onClick={load} className="font-data text-[10px] uppercase tracking-[0.12em] hover:underline">
                 Try again
               </button>
             </div>
           ) : notifs.length === 0 ? (
-            <div className="flex flex-col items-center py-10 text-slate-400 gap-2">
-              <Bell className="h-6 w-6 opacity-25" />
+            <div className="flex flex-col items-center gap-2 py-10 text-ink/40">
+              <Bell className="h-5 w-5 opacity-40" />
               <p className="text-[12px]">No notifications yet</p>
             </div>
           ) : (
-            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+            <div className="max-h-72 divide-y divide-rule overflow-y-auto">
               {notifs.map((n) => {
-                const cfg  = NOTIF_ICONS[n.type];
-                const Icon = cfg.icon;
+                const Icon = NOTIF_ICONS[n.type];
                 return (
                   <div key={n.id}
-                    className={`flex gap-3 px-4 py-3 ${isRead(n.id) ? "opacity-60" : "bg-slate-50/50"}`}>
-                    <div className={`w-8 h-8 rounded-full ${cfg.bg} flex items-center justify-center shrink-0 mt-0.5`}>
-                      <Icon className={`h-4 w-4 ${cfg.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-semibold text-slate-800 leading-tight">{n.title}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{n.body}</p>
+                    className={`flex gap-3 px-4 py-3 ${isRead(n.id) ? "opacity-55" : "bg-paper"}`}>
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink/45" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-semibold leading-tight text-ink">{n.title}</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-ink/55">{n.body}</p>
                       {n.action && (
                         <button onClick={() => handleAct(n)}
-                          className="text-[11px] text-emerald-600 font-semibold mt-1 hover:underline">
+                          className="mt-1 font-data text-[10px] uppercase tracking-[0.1em] text-ink/60 transition-colors hover:text-ink">
                           {n.action.label} →
                         </button>
                       )}
                     </div>
-                    {!isRead(n.id) && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />}
+                    {!isRead(n.id) && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-ink" />}
                   </div>
                 );
               })}
@@ -315,35 +316,37 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-4">
+      {/* The masthead rule the report pages open with, carried across the top
+          of the whole application so the nav belongs to the same document. */}
+      <nav className="sticky top-0 z-50 border-b-2 border-ink bg-white">
+        <div className="container mx-auto flex h-14 items-center justify-between gap-4 px-4">
 
           {/* Logo */}
           <button
             onClick={() => navigate(isDoctor ? "/dashboard" : "/")}
-            className="flex items-center gap-2 shrink-0"
+            className="flex shrink-0 items-center gap-2"
           >
-            <div className="bg-emerald-700 p-1.5 rounded-lg">
-              <Leaf className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-semibold text-slate-900 text-[15px] tracking-tight hidden sm:block">
+            <span className="flex h-6 w-6 items-center justify-center bg-ink">
+              <Leaf className="h-3.5 w-3.5 text-paper" />
+            </span>
+            <span className="hidden font-display text-[15px] font-semibold tracking-tight text-ink sm:block">
               MediCanna
             </span>
-            <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5 hidden sm:block">
+            <span className="hidden border border-rule px-1.5 py-0.5 font-data text-[9px] uppercase tracking-[0.12em] text-ink/50 sm:block">
               CDSS
             </span>
           </button>
 
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-0.5 flex-1 justify-center overflow-x-auto">
+          {/* Desktop nav — same tab idiom as the catalogue's category tabs */}
+          <div className="hidden flex-1 items-center justify-center gap-0.5 overflow-x-auto md:flex">
             {navItems.map(({ label, path }) => (
               <button
                 key={path}
                 onClick={() => navigate(path)}
-                className={`px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors whitespace-nowrap ${
+                className={`whitespace-nowrap px-2.5 py-1.5 font-data text-[10px] uppercase tracking-[0.1em] transition-colors ${
                   isActive(path)
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                    ? "bg-ink text-paper"
+                    : "text-ink/50 hover:bg-paper hover:text-ink"
                 }`}
               >
                 {label}
@@ -352,34 +355,32 @@ const Navbar = () => {
           </div>
 
           {/* Right */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             {!isDoctor && <NotificationBell patientId={patientId} />}
 
-            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-1.5 pr-3 py-1">
-              <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                <User className="h-3 w-3 text-emerald-700" />
-              </div>
-              <span className="text-[12px] font-medium text-slate-700 max-w-[100px] truncate">
+            {/* Role is a route, not a clinical reading — no colour of its own. */}
+            <div className="hidden items-center gap-2 border border-rule px-2.5 py-1 sm:flex">
+              <User className="h-3 w-3 shrink-0 text-ink/40" />
+              <span className="max-w-[100px] truncate text-[12px] font-medium text-ink/80">
                 {currentUser?.full_name}
               </span>
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                isDoctor ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"
-              }`}>
+              <span className="font-data text-[9px] uppercase tracking-[0.12em] text-ink/45">
                 {isDoctor ? "Doctor" : "Patient"}
               </span>
             </div>
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="p-2 text-ink/40 transition-colors hover:bg-paper hover:text-ink"
               title="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </button>
 
             <button
-              className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+              className="p-2 text-ink/50 transition-colors hover:bg-paper md:hidden"
               onClick={() => setMobileOpen((v) => !v)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -390,28 +391,28 @@ const Navbar = () => {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/20"
+          className="fixed inset-0 z-40 bg-ink/20 md:hidden"
           onClick={() => setMobileOpen(false)}
         >
           <div
-            className="absolute top-14 left-0 right-0 bg-white border-b border-slate-200 shadow-lg p-4 space-y-1"
+            className="absolute left-0 right-0 top-14 space-y-1 border-b border-rule bg-white p-4 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 px-3 py-2 mb-2 border-b border-slate-100 pb-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                <User className="h-4 w-4 text-emerald-700" />
-              </div>
+            <div className="mb-2 flex items-center gap-3 border-b border-rule px-1 pb-3">
+              <User className="h-4 w-4 shrink-0 text-ink/40" />
               <div>
-                <p className="text-[13px] font-medium text-slate-800">{currentUser?.full_name}</p>
-                <p className="text-[11px] text-slate-400">{isDoctor ? "Clinician" : "Patient"}</p>
+                <p className="text-[13px] font-medium text-ink">{currentUser?.full_name}</p>
+                <p className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/40">
+                  {isDoctor ? "Clinician" : "Patient"}
+                </p>
               </div>
             </div>
             {navItems.map(({ label, path, icon: Icon }) => (
               <button
                 key={path}
                 onClick={() => { navigate(path); setMobileOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors text-left ${
-                  isActive(path) ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-50"
+                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left font-data text-[11px] uppercase tracking-[0.1em] transition-colors ${
+                  isActive(path) ? "bg-ink text-paper" : "text-ink/60 hover:bg-paper hover:text-ink"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -420,7 +421,7 @@ const Navbar = () => {
             ))}
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-red-500 hover:bg-red-50 mt-2"
+              className="mt-2 flex w-full items-center gap-3 border border-rule px-3 py-2.5 font-data text-[11px] uppercase tracking-[0.1em] text-ink/60 transition-colors hover:bg-paper hover:text-ink"
             >
               <LogOut className="h-4 w-4" />
               Sign out

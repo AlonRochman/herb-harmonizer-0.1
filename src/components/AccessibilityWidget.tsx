@@ -34,7 +34,7 @@ const apply = (s: A11yState) => {
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-center justify-between gap-3 py-2.5">
-    <span className="text-[13px] font-medium text-slate-700">{label}</span>
+    <span className="text-[13px] font-medium text-ink/75">{label}</span>
     {children}
   </div>
 );
@@ -45,12 +45,12 @@ const Toggle = ({
   <button
     role="switch" aria-checked={on} aria-label={label}
     onClick={() => onChange(!on)}
-    className={`relative w-10 h-6 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
-      on ? "bg-emerald-600" : "bg-slate-300"
+    className={`relative h-6 w-10 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+      on ? "bg-ink" : "bg-rule"
     }`}
   >
     <span
-      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+      className={`absolute top-0.5 h-5 w-5 bg-white shadow transition-transform ${
         on ? "translate-x-[18px]" : "translate-x-0.5"
       }`}
     />
@@ -91,13 +91,13 @@ const AccessibilityWidget = () => {
       {open && (
         <div
           role="dialog" aria-label="Accessibility settings"
-          className="mb-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-lg p-4"
+          className="mb-2 w-64 border border-rule bg-white p-4 shadow-lg"
         >
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-[14px] font-semibold text-slate-900">Accessibility</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/55">Accessibility</h2>
             <button
               onClick={() => setOpen(false)} aria-label="Close accessibility settings"
-              className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"
+              className="p-1 text-ink/35 transition-colors hover:text-ink"
             >
               <X className="h-4 w-4" />
             </button>
@@ -110,10 +110,10 @@ const AccessibilityWidget = () => {
                   key={n}
                   role="radio" aria-checked={prefs.textSize === n}
                   onClick={() => update({ textSize: n })}
-                  className={`w-8 h-8 rounded-lg border text-slate-700 font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 ${
+                  className={`h-8 w-8 border font-data font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink ${
                     prefs.textSize === n
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-white hover:border-slate-300"
+                      ? "border-ink bg-paper text-ink"
+                      : "border-rule bg-white text-ink/55 hover:border-ink/35"
                   }`}
                   style={{ fontSize: 11 + n * 3 }}
                 >
@@ -133,7 +133,7 @@ const AccessibilityWidget = () => {
 
           <button
             onClick={() => update(DEFAULTS)}
-            className="mt-2 w-full flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50"
+            className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 border border-rule font-data text-[10px] uppercase tracking-[0.12em] text-ink/55 transition-colors hover:bg-paper hover:text-ink"
           >
             <RotateCcw className="h-3 w-3" /> Reset to defaults
           </button>
@@ -145,7 +145,7 @@ const AccessibilityWidget = () => {
         aria-expanded={open}
         aria-label="Accessibility settings"
         title="Accessibility settings"
-        className="w-11 h-11 rounded-full bg-slate-900 text-white shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+        className="flex h-11 w-11 items-center justify-center bg-ink text-paper shadow-lg transition-colors hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
         <Accessibility className="h-5 w-5" />
       </button>
