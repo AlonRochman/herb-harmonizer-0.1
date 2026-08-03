@@ -39,6 +39,17 @@ claims consistent.
   patients manually. Prefills from existing profile.
 - `src/pages/FeedbackPage.tsx` — rate past sessions + history. Strictly scoped
   to the resolved patient; never shows other patients' records.
+- `src/lib/supabaseRead.ts` — `read()` / `readOr()`: the only sanctioned way to
+  run a Supabase read. Returns `{ data, failed }` so callers can tell "loaded,
+  genuinely empty" from "load failed".
+- `src/components/Navbar.tsx` — nav + notification bell. The bell derives
+  notifications from DB state (nothing is stored), refetches when the dropdown
+  opens so an approval made in another session appears without a reload, and
+  persists dismissed IDs in `localStorage` under `mc_notif_read`, keyed by
+  patient id. That was a deliberate choice over adding a DB column: read state
+  is a prototype affordance, and it follows the `mc_a11y` pattern. Consequence:
+  read state is per-device. There is no realtime subscription — rejected as one
+  more thing to fail during a live demo.
 - `src/components/AccessibilityWidget.tsx` — global widget (text size ×3, high
   contrast, reduce motion) persisted in `localStorage` (`mc_a11y`), applied as
   classes on `<html>` (CSS at the bottom of `src/index.css`).
@@ -68,6 +79,12 @@ Patient conditions in seeded data are essentially "Chronic Pain" and "Anxiety".
 - **Supabase never throws.** Check `{ error }` on every write. Pattern in
   PatientInputPage: `must(await supabase...)` throws on error — reuse it.
   Silent write failures were a real bug class here.
+- **Never destructure only `{ data }` from a read.** Same root cause: a failed
+  query resolves as `{ data: null, error }`, so dropping `error` renders "no
+  results" for "the query broke". All reads go through `read()` / `readOr()` in
+  `src/lib/supabaseRead.ts`, which logs against a label naming the call site.
+  Where emptiness is user-visible, render `<LoadError what="..." />` rather than
+  an innocent empty state. Auth calls (getSession/onAuthStateChange) are exempt.
 - **Never silently bypass clinical constraints.** If no strain passes
   thc_max/cbd_min, show an explicit message; do not widen the pool.
 - **Empty-string matching:** `"x".includes("")` is true — guard any condition
@@ -86,8 +103,26 @@ The product is a clinical instrument, not a wellness app. Tokens in
 Signature element: chemotype axis (real CBD/THC ratio, Type I/II/III) +
 licence headroom meter ("X% of Y% ceiling"). The % match ring was deliberately
 removed — a normalised rule sum is not a probability; don't bring it back.
-Other pages (Dashboard, Feedback, Login, etc.) still use the old emerald/shadcn
-look — rolling the tokens out to them is an open task.
+The dashboard now follows the same language: a local `Panel` replaces shadcn
+`Card`, THC/CBD chips use resin/clinic, review status uses ink weight with flag
+reserved for the negative verdict, and the efficacy chart is ink (efficacy is not
+a cannabinoid, so clinic would have been wrong). `match_score` is labelled "rule
+sum", never "%". Remaining pages (Feedback, Login, Catalog, Info Centre) still
+use the old emerald/shadcn look — rolling the tokens out is an open task.
+
+## Roles
+
+`NAV_DOCTOR` in Navbar.tsx must stay in sync with `DOCTOR_ACTIONS` in Index.tsx.
+Dosage and Info Centre were removed from the doctor nav (2026-08-03): both are
+written in the second person for the patient and neither touches a patient
+record. Profiling stays — it is where a clinician enters a patient's profile and
+constraints, and the closed loop starts there.
+
+No route is role-guarded; only the nav differs. A doctor can still reach
+/dosage, /license or /recommendations by URL, and a patient can reach
+/dashboard. Also, Index.tsx has a doctor-specific home (DOCTOR_ACTIONS,
+"Clinical tools") that the doctor nav does not link to — reachable only via the
+logo. Both are open items, not bugs.
 
 ## Operational gotchas
 
@@ -113,13 +148,30 @@ constraint safety, profile upsert (no more orphan patients), session survival
 across refresh, evidence engine live (strain_conditions seeded), Recommendations
 page redesigned, dead component files removed.
 
+Done 2026-08-03 (second session):
+- Notification bell verified and fixed — it had never worked end to end: both
+  reads dropped `error`, it fetched once per mount so a cross-session approval
+  needed a reload, and read state died on refresh. Now refetches on open, with
+  read state in `localStorage` (`mc_notif_read`).
+- Every Supabase read routed through `src/lib/supabaseRead.ts` (27 call sites);
+  user-visible empty states that could be failures now render `<LoadError>`.
+  RecommendationsPage no longer falls back to a seeded stranger's profile when
+  the own-profile read *fails*, and a failed constraints read blocks
+  recommendation instead of scoring against unconfirmed limits.
+- Dashboard restyled in the clinical language; approve/reject flow untouched.
+- Doctor nav scoped to clinician tools; dosage page no longer claims its caps
+  pre-fill clinical_constraints (they never did).
+- README rewritten around the algorithm with verified line links.
+- bun.lock / bun.lockb deleted; npm is the single lockfile.
+
 Next candidates:
-1. Roll the clinical design language out to Dashboard / Feedback / Catalog / Login.
+1. Roll the clinical design language out to Feedback / Catalog / Login / Info.
 2. Real RLS policies per `auth.uid()` (requires deciding doctor identity — the
    demo clinician has no Auth account).
-3. Notifications: approved-recommendation bell exists in Navbar; verify end-to-end.
+3. Role-guard the routes, and decide the doctor home (see Roles above).
 4. Report gaps (ספר הפרויקט): real screenshots (exist in repo history),
-   STR test-result tables, Gantt, poster, bibliography completion.
+   STR test-result tables, Gantt, poster, bibliography completion. Take
+   screenshots *after* the remaining pages are restyled, not before.
 
 ## Testing
 
