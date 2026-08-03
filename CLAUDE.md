@@ -1,5 +1,19 @@
 # MediCanna Health — CDSS for Medical Cannabis
 
+## Scope boundary (read first)
+
+This repo is **studies only** — the Afeka capstone. It lives at
+`~/Desktop/Alon/studies/herb-harmonizer-0.1` and its only remote is the public
+GitHub repo `AlonRochman/herb-harmonizer-0.1`.
+
+It is unrelated to the ~162 Votiro work repos under `~/Desktop/Alon/votiro oded/`,
+which push to Azure DevOps and must never reach an external host. This project
+was originally cloned *inside* that folder and was moved out on 2026-08-03 for
+exactly that reason. Never run a git command spanning both trees, and never
+reference Votiro code, tickets, or infrastructure here.
+
+## Project
+
 Fourth-year capstone project (Afeka College, Industrial Engineering & Management).
 A Clinical Decision Support System matching patients to medical cannabis strains.
 Students: Matan Tzeig, Alon Rochman, Alon Bahlul. Advisor: Tamar Brillant.
