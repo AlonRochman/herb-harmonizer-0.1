@@ -1,196 +1,180 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { useAppState } from "@/context/AppContext";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useAppState, ensureUserRecords } from "@/context/AppContext";
 import {
-  Leaf, Loader2, Stethoscope, User,
-  ShieldCheck, Sparkles, TrendingUp, AlertCircle,
+  Leaf, Loader2, Stethoscope, User, Eye, EyeOff, MailCheck,
 } from "lucide-react";
 
-// ─── Known demo UUIDs from the users table ────────────────────────────────────
-// User 1 → d5186dd5-23f1-47ae-b7b1-7e0dc59776b0 (patient)
-// User 2 → 8eddc5e3-3fd9-4890-868e-7c17e76b63df (patient)
-// Doctors don't have users rows — we identify them via the doctors table
+// Known demo patient (seeded data) for the exhibition walkthrough
 const DEMO_PATIENT_USER_ID = "d5186dd5-23f1-47ae-b7b1-7e0dc59776b0";
-const DEMO_PATIENT_NAME    = "User 1";
 
-// ─── Feature bullet ───────────────────────────────────────────────────────────
-const Feature = ({ icon: Icon, text }: { icon: React.ElementType; text: string }) => (
-  <div className="flex items-center gap-2.5 text-[13px] text-slate-500">
-    <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-      <Icon className="h-3.5 w-3.5 text-emerald-600" />
-    </div>
-    {text}
-  </div>
+type Mode = "signin" | "signup";
+
+const Field = ({
+  label, children,
+}: { label: string; children: React.ReactNode }) => (
+  <label className="block">
+    <span className="text-[12px] font-semibold text-slate-600">{label}</span>
+    <div className="mt-1">{children}</div>
+  </label>
 );
 
-// ─── Role card ────────────────────────────────────────────────────────────────
-const RoleCard = ({
-  icon: Icon, title, desc, color, onClick, disabled,
-}: {
-  icon: React.ElementType; title: string; desc: string;
-  color: "emerald" | "blue"; onClick: () => void; disabled: boolean;
-}) => {
-  const border = color === "emerald"
-    ? "hover:border-emerald-300 hover:bg-emerald-50"
-    : "hover:border-blue-300 hover:bg-blue-50";
-  const iconBg = color === "emerald"
-    ? "bg-emerald-100 text-emerald-700"
-    : "bg-blue-100 text-blue-700";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`group w-full flex flex-col items-center gap-3 p-5 rounded-xl border border-slate-200 transition-all disabled:opacity-50 ${border}`}
-    >
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${iconBg}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="text-center">
-        <p className="text-[14px] font-semibold text-slate-800">{title}</p>
-        <p className="text-[12px] text-slate-400 mt-0.5">{desc}</p>
-      </div>
-    </button>
-  );
-};
+const inputCls =
+  "w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-[13px] text-slate-900 " +
+  "placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400";
 
-// ─── Main page ────────────────────────────────────────────────────────────────
 const LoginPage = () => {
   const navigate = useNavigate();
   const { setCurrentUser } = useAppState();
 
-  const [isLoading, setIsLoading]     = useState(false);
-  const [errorMsg, setErrorMsg]       = useState("");
-  const [fullName, setFullName]       = useState("");
-  const [email, setEmail]             = useState("");
-  const [showSignup, setShowSignup]   = useState(false);
+  const [mode, setMode]           = useState<Mode>("signin");
+  const [fullName, setFullName]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [errorMsg, setErrorMsg]   = useState("");
+  const [awaitConfirm, setAwaitConfirm] = useState(false);
 
-  // ── Demo patient login — resolves real UUID from DB ──────────────────────
-  const loginAsPatient = async () => {
-    setIsLoading(true);
-    setErrorMsg("");
+  const validate = (): boolean => {
+    if (mode === "signup" && fullName.trim().length < 2) {
+      setErrorMsg("Enter your full name."); return false;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setErrorMsg("Enter a valid email address."); return false;
+    }
+    if (password.length < 8) {
+      setErrorMsg("Password needs at least 8 characters."); return false;
+    }
+    return true;
+  };
+
+  // ── Create account ─────────────────────────────────────────────────────────
+  const handleSignup = async () => {
+    if (!validate()) return;
+    setLoading(true); setErrorMsg("");
     try {
-      // Step 1: get the real user row
-      const { data: userRow, error } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .eq("id", DEMO_PATIENT_USER_ID)
-        .maybeSingle();
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { full_name: fullName.trim() } },
+      });
+      if (error) throw new Error(error.message);
 
-      if (error || !userRow) {
-        // Fallback: grab any existing user
-        const { data: anyUser } = await supabase
-          .from("users")
-          .select("id, full_name")
-          .limit(1)
-          .maybeSingle();
-
-        if (!anyUser) throw new Error("No users found in DB");
-
-        setCurrentUser({ id: anyUser.id, full_name: anyUser.full_name, role: "patient" });
+      if (data.session && data.user) {
+        // Email confirmation is off — signed in immediately.
+        await ensureUserRecords(data.user.id, data.user.email ?? undefined, fullName.trim());
+        setCurrentUser({
+          id: data.user.id, full_name: fullName.trim(), role: "patient", authUser: true,
+        });
+        navigate("/patient-input"); // first stop: build the medical profile
       } else {
-        setCurrentUser({ id: userRow.id, full_name: userRow.full_name, role: "patient" });
+        // Email confirmation is on — account created, waiting for the link.
+        setAwaitConfirm(true);
       }
-
-      navigate("/");
-    } catch (err) {
-      setErrorMsg("Could not load demo patient. Check DB connection.");
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Could not create the account. Try again.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // ── Demo doctor login — doctors don't have users rows, use a fixed name ──
-  // Doctors are identified by the doctors table, not users.
-  // We use a placeholder UUID that won't collide with real patient lookups.
-  const loginAsDoctor = async () => {
-    setIsLoading(true);
-    setErrorMsg("");
+  // ── Sign in ────────────────────────────────────────────────────────────────
+  const handleSignin = async () => {
+    if (!validate()) return;
+    setLoading(true); setErrorMsg("");
     try {
-      // Grab the first verified doctor from the doctors table
-      const { data: doctorRow } = await supabase
-        .from("doctors")
-        .select("id, first_name, last_name")
-        .eq("is_verified", true)
-        .limit(1)
-        .maybeSingle();
-
-      const name = doctorRow
-        ? `Dr. ${doctorRow.first_name} ${doctorRow.last_name}`
-        : "Dr. Demo";
-
-      // For doctors we use their doctors.id as the identifier
-      // (isDoctor hook checks role, not user_id lookups)
-      setCurrentUser({
-        id:        doctorRow?.id ?? "doctor-demo",
-        full_name: name,
-        role:      "doctor",
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(), password,
       });
+      if (error) throw new Error(
+        error.message === "Invalid login credentials"
+          ? "Email or password is incorrect."
+          : error.message === "Email not confirmed"
+            ? "This email has not been confirmed yet. Check your inbox for the confirmation link."
+            : error.message,
+      );
+      const name =
+        (data.user?.user_metadata?.full_name as string) || data.user?.email || "Patient";
+      await ensureUserRecords(data.user!.id, data.user!.email ?? undefined, name);
+      setCurrentUser({ id: data.user!.id, full_name: name, role: "patient", authUser: true });
+      navigate("/");
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Could not sign in. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // ── Demo access (seeded data for the exhibition) ───────────────────────────
+  const demoPatient = async () => {
+    setLoading(true); setErrorMsg("");
+    try {
+      const { data: userRow } = await supabase
+        .from("users").select("id, full_name")
+        .eq("id", DEMO_PATIENT_USER_ID).maybeSingle();
+      const row = userRow ?? (await supabase
+        .from("users").select("id, full_name").limit(1).maybeSingle()).data;
+      if (!row) throw new Error("No seeded users in the database.");
+      setCurrentUser({ id: row.id, full_name: row.full_name, role: "patient" });
+      navigate("/");
+    } catch {
+      setErrorMsg("Could not load the demo patient.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const demoDoctor = async () => {
+    setLoading(true); setErrorMsg("");
+    try {
+      const { data: doc } = await supabase
+        .from("doctors").select("id, first_name, last_name")
+        .eq("is_verified", true).limit(1).maybeSingle();
+      setCurrentUser({
+        id: doc?.id ?? "doctor-demo",
+        full_name: doc ? `Dr. ${doc.first_name} ${doc.last_name}` : "Dr. Demo",
+        role: "doctor",
+      });
       navigate("/dashboard");
     } catch {
-      setErrorMsg("Could not load demo doctor.");
+      setErrorMsg("Could not load the demo clinician.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // ── Signup — insert real user row, then login with returned UUID ──────────
-  const handleSignup = async (role: "doctor" | "patient") => {
-    if (!fullName.trim()) { setErrorMsg("Please enter your full name."); return; }
-    if (!email.trim())    { setErrorMsg("Please enter your email."); return; }
+  const submit = mode === "signup" ? handleSignup : handleSignin;
 
-    setIsLoading(true);
-    setErrorMsg("");
-    try {
-      // Insert and return the real UUID
-      const { data: newUser, error } = await supabase
-        .from("users")
-        .insert({ full_name: fullName.trim(), email: email.trim() })
-        .select("id, full_name")
-        .single();
-
-      if (error || !newUser) throw new Error(error?.message ?? "Insert failed");
-
-      // If patient: create the patients row too
-      if (role === "patient") {
-        const { data: newPatient } = await supabase
-          .from("patients")
-          .insert({ user_id: newUser.id })
-          .select("id")
-          .single();
-
-        // Also seed an empty patient_profile so the dashboard doesn't crash
-        if (newPatient?.id) {
-          await supabase.from("patient_profiles").insert({
-            patient_id:         newPatient.id,
-            age:                null,
-            gender:             null,
-            medical_conditions: null,
-            sensitivities:      null,
-            preferences:        null,
-          });
-        }
-      }
-
-      setCurrentUser({ id: newUser.id, full_name: newUser.full_name, role });
-      navigate(role === "doctor" ? "/dashboard" : "/");
-    } catch (err: any) {
-      setErrorMsg(err.message ?? "Signup failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ── Post-signup confirmation screen ────────────────────────────────────────
+  if (awaitConfirm) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-3">
+        <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center">
+          <MailCheck className="h-6 w-6 text-emerald-600" />
+        </div>
+        <h2 className="text-[16px] font-semibold text-slate-900">Confirm your email</h2>
+        <p className="text-[13px] text-slate-500 leading-relaxed">
+          We sent a confirmation link to <span className="font-medium text-slate-700">{email}</span>.
+          Open it, then sign in here.
+        </p>
+        <button
+          onClick={() => { setAwaitConfirm(false); setMode("signin"); }}
+          className="text-[13px] font-semibold text-emerald-700 hover:text-emerald-600"
+        >
+          Back to sign in
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-7">
           <div className="w-12 h-12 bg-emerald-700 rounded-2xl flex items-center justify-center mb-3 shadow-sm">
             <Leaf className="h-6 w-6 text-white" />
           </div>
@@ -198,124 +182,98 @@ const LoginPage = () => {
           <p className="text-[13px] text-slate-400 mt-0.5">Clinical Decision Support System</p>
         </div>
 
-        {/* Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
 
-          {/* Error */}
-          {errorMsg && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 mb-4 animate-in fade-in duration-200">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-red-700">{errorMsg}</p>
-            </div>
-          )}
-
-          {!showSignup ? (
-            <>
-              <p className="text-[13px] font-medium text-slate-600 mb-4 text-center">
-                Enter as a demo user
-              </p>
-
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <RoleCard
-                  icon={User}
-                  title="Patient"
-                  desc="View recommendations & log usage"
-                  color="emerald"
-                  onClick={loginAsPatient}
-                  disabled={isLoading}
-                />
-                <RoleCard
-                  icon={Stethoscope}
-                  title="Doctor"
-                  desc="Clinical dashboard & approvals"
-                  color="blue"
-                  onClick={loginAsDoctor}
-                  disabled={isLoading}
-                />
-              </div>
-
-              {isLoading && (
-                <div className="flex items-center justify-center gap-2 text-[13px] text-slate-400 mb-4">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Initializing session…
-                </div>
-              )}
-
-              <div className="border-t border-slate-100 pt-4">
-                <button
-                  className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
-                  onClick={() => { setShowSignup(true); setErrorMsg(""); }}
-                >
-                  Create a named account →
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-[13px] font-medium text-slate-600 mb-4">Create account</p>
-
-              <div className="space-y-3 mb-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">
-                    Full name <span className="text-red-400">*</span>
-                  </Label>
-                  <Input
-                    placeholder="e.g. Yoni Cohen"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="text-[13px]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">
-                    Email <span className="text-red-400">*</span>
-                  </Label>
-                  <Input
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="text-[13px]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <button
-                  onClick={() => handleSignup("patient")}
-                  disabled={isLoading}
-                  className="flex items-center justify-center h-10 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-60"
-                >
-                  {isLoading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : "As patient"
-                  }
-                </button>
-                <button
-                  onClick={() => handleSignup("doctor")}
-                  disabled={isLoading}
-                  className="flex items-center justify-center h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold transition-colors disabled:opacity-60"
-                >
-                  {isLoading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : "As doctor"
-                  }
-                </button>
-              </div>
-
+          {/* Mode switch */}
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+            {(["signin", "signup"] as Mode[]).map((m) => (
               <button
-                className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
-                onClick={() => { setShowSignup(false); setErrorMsg(""); }}
+                key={m}
+                onClick={() => { setMode(m); setErrorMsg(""); }}
+                className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                  mode === m ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
               >
-                ← Back
+                {m === "signin" ? "Sign in" : "Create account"}
               </button>
-            </>
+            ))}
+          </div>
+
+          {errorMsg && (
+            <p className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              {errorMsg}
+            </p>
           )}
+
+          {mode === "signup" && (
+            <Field label="Full name">
+              <input
+                className={inputCls} value={fullName} autoComplete="name"
+                placeholder="Dana Levi" onChange={(e) => setFullName(e.target.value)}
+              />
+            </Field>
+          )}
+
+          <Field label="Email">
+            <input
+              className={inputCls} type="email" value={email} autoComplete="email"
+              placeholder="you@example.com" onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+
+          <Field label="Password">
+            <div className="relative">
+              <input
+                className={inputCls + " pr-10"}
+                type={showPw ? "text" : "password"}
+                value={password}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? "Hide password" : "Show password"}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </Field>
+
+          <button
+            onClick={submit}
+            disabled={loading}
+            className="w-full h-11 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {mode === "signup" ? "Create account" : "Sign in"}
+          </button>
         </div>
 
-        {/* Feature list */}
-        <div className="mt-6 space-y-2.5 px-1">
-          <Feature icon={Sparkles}    text="AI-powered strain matching" />
-          <Feature icon={ShieldCheck} text="Evidence-based clinical rules" />
-          <Feature icon={TrendingUp}  text="Treatment efficacy tracking" />
+        {/* Demo access — seeded data for the exhibition */}
+        <div className="mt-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-[11px] uppercase tracking-wider text-slate-400">Demo access</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={demoPatient} disabled={loading}
+              className="flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all disabled:opacity-50"
+            >
+              <User className="h-3.5 w-3.5 text-emerald-600" /> Demo patient
+            </button>
+            <button
+              onClick={demoDoctor} disabled={loading}
+              className="flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-all disabled:opacity-50"
+            >
+              <Stethoscope className="h-3.5 w-3.5 text-blue-600" /> Demo clinician
+            </button>
+          </div>
         </div>
       </div>
     </div>

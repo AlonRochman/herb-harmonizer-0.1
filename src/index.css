@@ -99,3 +99,25 @@
     background: linear-gradient(135deg, hsl(168 60% 36%), hsl(195 70% 35%));
   }
 }
+
+/* ─── Accessibility modes (applied on <html> by AccessibilityWidget) ───────── */
+/* zoom scales px-based type too, which this codebase uses heavily */
+html.a11y-text-lg body { zoom: 1.12; }
+html.a11y-text-xl body { zoom: 1.25; }
+
+html.a11y-contrast {
+  --foreground: 210 60% 6%;
+  --muted-foreground: 210 25% 28%;
+  --border: 210 25% 55%;
+  --input: 210 25% 55%;
+}
+html.a11y-contrast body { filter: contrast(1.08); }
+
+html.a11y-no-motion *,
+html.a11y-no-motion *::before,
+html.a11y-no-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

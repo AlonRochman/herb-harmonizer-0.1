@@ -16,6 +16,7 @@ import LicenseVerificationPage from "./pages/LicenseVerificationPage";
 import LoginPage              from "./pages/LoginPage";
 import NotFound               from "./pages/NotFound";
 import Navbar                 from "./components/Navbar";
+import AccessibilityWidget    from "./components/AccessibilityWidget";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
         <Toaster />
         <BrowserRouter>
           <AppRoutes />
+          <AccessibilityWidget />
         </BrowserRouter>
       </AppProvider>
     </TooltipProvider>

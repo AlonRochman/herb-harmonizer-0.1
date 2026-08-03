@@ -228,7 +228,8 @@ const Navbar = () => {
     }
   }, [currentUser, isDoctor]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut().catch(() => {});
     setCurrentUser(null);
     navigate("/login");
   };
