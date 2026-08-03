@@ -13,36 +13,23 @@ interface FAQItem {
   tags?: string[];
 }
 
-// Sections used to carry an iconColor/iconBg pair each (emerald, violet, blue,
-// orange). Four hues for four chapters of a reference document encoded nothing,
-// and this page is where a reader learns that resin means THC and clinic means
-// CBD — spending colour on chapter headings here would teach the opposite.
 interface FAQSection {
   id: string;
   icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
   title: string;
   subtitle: string;
   items: FAQItem[];
 }
-
-// ─── Shared answer-body styling ───────────────────────────────────────────────
-const H = ({ children }: { children: React.ReactNode }) => (
-  <p className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">{children}</p>
-);
-
-// The evidence ladder from the recommendations page: grade is carried by ink
-// weight, not by a traffic-light palette.
-const GRADE_WEIGHT: Record<string, string> = {
-  Strong:   "text-ink font-semibold",
-  Moderate: "text-ink/70 font-medium",
-  Emerging: "text-ink/45",
-};
 
 // ─── Content ──────────────────────────────────────────────────────────────────
 const SECTIONS: FAQSection[] = [
   {
     id: "basics",
     icon: Leaf,
+    iconColor: "text-emerald-700",
+    iconBg: "bg-emerald-50",
     title: "Medical cannabis basics",
     subtitle: "Essential knowledge for new patients",
     items: [
@@ -53,14 +40,14 @@ const SECTIONS: FAQSection[] = [
           <div className="space-y-3">
             <p>Medical cannabis refers to the use of the cannabis plant — or its active compounds — to treat symptoms and conditions under medical supervision. Unlike recreational use, medical cannabis is prescribed by a licensed physician and administered at controlled doses.</p>
             <p>The plant contains over 100 active compounds called <strong>cannabinoids</strong>. The two most studied are THC (tetrahydrocannabinol) and CBD (cannabidiol), each with distinct therapeutic properties.</p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="border border-rule border-l-2 border-l-resin p-3">
-                <p className="mb-1 font-data text-[10px] uppercase tracking-[0.12em] text-resin">THC</p>
-                <p className="text-[12px] text-ink/70">Psychoactive compound. Effective for pain, nausea, and appetite stimulation.</p>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-1">THC</p>
+                <p className="text-[12px] text-amber-800">Psychoactive compound. Effective for pain, nausea, and appetite stimulation.</p>
               </div>
-              <div className="border border-rule border-l-2 border-l-clinic p-3">
-                <p className="mb-1 font-data text-[10px] uppercase tracking-[0.12em] text-clinic">CBD</p>
-                <p className="text-[12px] text-ink/70">Non-psychoactive. Anti-inflammatory, anxiolytic, and anti-epileptic properties.</p>
+              <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700 mb-1">CBD</p>
+                <p className="text-[12px] text-teal-800">Non-psychoactive. Anti-inflammatory, anxiolytic, and anti-epileptic properties.</p>
               </div>
             </div>
           </div>
@@ -72,22 +59,20 @@ const SECTIONS: FAQSection[] = [
         a: (
           <div className="space-y-3">
             <p>Medical cannabis has shown therapeutic benefit for a range of conditions. Evidence strength varies — some indications have robust clinical data, others are based on observational studies.</p>
-            <div className="mt-2 divide-y divide-rule border border-rule">
+            <div className="grid grid-cols-2 gap-2 mt-2">
               {[
-                { label: "Chronic Pain",       strength: "Strong"   },
-                { label: "Insomnia",           strength: "Strong"   },
-                { label: "Anxiety",            strength: "Moderate" },
-                { label: "PTSD",               strength: "Moderate" },
-                { label: "Chemo Nausea",       strength: "Strong"   },
-                { label: "Epilepsy",           strength: "Strong"   },
-                { label: "Multiple Sclerosis", strength: "Moderate" },
-                { label: "Fibromyalgia",       strength: "Emerging" },
-              ].map(({ label, strength }) => (
-                <div key={label} className="flex items-center justify-between px-3 py-2">
-                  <span className="text-[12px] text-ink/75">{label}</span>
-                  <span className={`font-data text-[10px] uppercase tracking-[0.1em] ${GRADE_WEIGHT[strength]}`}>
-                    {strength}
-                  </span>
+                { label: "Chronic Pain",       strength: "Strong",   color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                { label: "Insomnia",           strength: "Strong",   color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                { label: "Anxiety",            strength: "Moderate", color: "bg-amber-100 text-amber-800 border-amber-300" },
+                { label: "PTSD",               strength: "Moderate", color: "bg-amber-100 text-amber-800 border-amber-300" },
+                { label: "Chemo Nausea",       strength: "Strong",   color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                { label: "Epilepsy",           strength: "Strong",   color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                { label: "Multiple Sclerosis", strength: "Moderate", color: "bg-amber-100 text-amber-800 border-amber-300" },
+                { label: "Fibromyalgia",       strength: "Emerging", color: "bg-slate-100 text-slate-600 border-slate-300" },
+              ].map(({ label, strength, color }) => (
+                <div key={label} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${color}`}>
+                  <span className="text-[12px] font-medium">{label}</span>
+                  <span className="text-[10px] font-semibold opacity-70">{strength}</span>
                 </div>
               ))}
             </div>
@@ -109,10 +94,10 @@ const SECTIONS: FAQSection[] = [
                 { n: "5", title: "Pharmacy purchase", desc: "Use your license at an authorized pharmacy to purchase the prescribed category." },
               ].map(({ n, title, desc }) => (
                 <li key={n} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center bg-ink font-data text-[10px] font-semibold text-paper">{n}</span>
+                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">{n}</span>
                   <div>
-                    <p className="text-[13px] font-semibold text-ink">{title}</p>
-                    <p className="text-[12px] text-ink/50">{desc}</p>
+                    <p className="text-[13px] font-semibold text-slate-800">{title}</p>
+                    <p className="text-[12px] text-slate-500">{desc}</p>
                   </div>
                 </li>
               ))}
@@ -125,6 +110,8 @@ const SECTIONS: FAQSection[] = [
   {
     id: "cannabinoids",
     icon: FlaskConical,
+    iconColor: "text-purple-700",
+    iconBg: "bg-purple-50",
     title: "THC, CBD & cannabinoids",
     subtitle: "Understanding the active compounds",
     items: [
@@ -134,17 +121,17 @@ const SECTIONS: FAQSection[] = [
         a: (
           <div className="space-y-3">
             <p><strong>Tetrahydrocannabinol (THC)</strong> is the primary psychoactive compound in cannabis. It binds to CB1 receptors in the brain and nervous system, producing the characteristic "high" alongside therapeutic effects.</p>
-            <div className="space-y-2 border border-rule border-l-2 border-l-resin p-4">
-              <p className="font-data text-[10px] uppercase tracking-[0.12em] text-resin">Therapeutic uses</p>
-              <ul className="space-y-1 text-[12px] text-ink/70">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">Therapeutic uses</p>
+              <ul className="space-y-1 text-[12px] text-amber-900">
                 {["Pain relief (analgesic)", "Anti-nausea, appetite stimulation", "Muscle relaxation and spasm reduction", "Sleep induction at higher doses", "Mood elevation in low doses"].map(u => (
-                  <li key={u} className="flex items-center gap-2"><span className="inline-block h-1 w-1 shrink-0 bg-resin" />{u}</li>
+                  <li key={u} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-amber-500 inline-block shrink-0" />{u}</li>
                 ))}
               </ul>
             </div>
-            <div className="flex gap-2 border border-flag/40 border-l-2 border-l-flag bg-flag/5 p-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
-              <p className="text-[12px] text-flag">High THC doses may cause anxiety, paranoia, or cognitive impairment. Start low, go slow — especially elderly or first-time patients.</p>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex gap-2">
+              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-red-700">High THC doses may cause anxiety, paranoia, or cognitive impairment. Start low, go slow — especially elderly or first-time patients.</p>
             </div>
           </div>
         ),
@@ -155,28 +142,28 @@ const SECTIONS: FAQSection[] = [
         a: (
           <div className="space-y-3">
             <p><strong>Cannabidiol (CBD)</strong> is non-psychoactive — it does not produce a "high." It works primarily on CB2 receptors and indirectly modulates the endocannabinoid system, offering therapeutic benefit without cognitive impairment.</p>
-            <div className="overflow-hidden border border-rule">
+            <div className="overflow-hidden rounded-xl border border-slate-200">
               <table className="w-full text-[12px]">
                 <thead>
-                  <tr className="border-b border-rule bg-paper">
-                    <th className="px-3 py-2 text-left font-data text-[10px] uppercase tracking-[0.1em] text-ink/45">Property</th>
-                    <th className="px-3 py-2 text-center font-data text-[10px] uppercase tracking-[0.1em] text-resin">THC</th>
-                    <th className="px-3 py-2 text-center font-data text-[10px] uppercase tracking-[0.1em] text-clinic">CBD</th>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-3 py-2 text-slate-500 font-semibold">Property</th>
+                    <th className="text-center px-3 py-2 text-amber-700 font-semibold">THC</th>
+                    <th className="text-center px-3 py-2 text-teal-700 font-semibold">CBD</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-rule">
+                <tbody className="divide-y divide-slate-100">
                   {[
-                    ["Psychoactive",       "Yes",      "No"],
-                    ["Anxiety relief",     "Low dose", "Yes"],
+                    ["Psychoactive",       "Yes ⚠️",  "No ✓"],
+                    ["Anxiety relief",     "Low dose", "Yes ✓"],
                     ["Pain relief",        "Strong",   "Moderate"],
-                    ["Anti-epileptic",     "Minimal",  "Strong"],
-                    ["Anti-inflammatory",  "Moderate", "Strong"],
-                    ["Sleep induction",    "Yes",      "Indirect"],
+                    ["Anti-epileptic",     "Minimal",  "Strong ✓"],
+                    ["Anti-inflammatory",  "Moderate", "Strong ✓"],
+                    ["Sleep induction",    "Yes ✓",   "Indirect"],
                   ].map(([prop, thc, cbd]) => (
-                    <tr key={prop}>
-                      <td className="px-3 py-2 font-medium text-ink/75">{prop}</td>
-                      <td className="px-3 py-2 text-center font-data text-resin">{thc}</td>
-                      <td className="px-3 py-2 text-center font-data text-clinic">{cbd}</td>
+                    <tr key={prop} className="hover:bg-slate-50/50">
+                      <td className="px-3 py-2 text-slate-700 font-medium">{prop}</td>
+                      <td className="px-3 py-2 text-center text-amber-700">{thc}</td>
+                      <td className="px-3 py-2 text-center text-teal-700">{cbd}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -193,19 +180,19 @@ const SECTIONS: FAQSection[] = [
             <p>Terpenes are aromatic compounds found in cannabis (and many other plants) that contribute to the plant's scent and flavour. Critically, they also have direct therapeutic effects and work synergistically with cannabinoids — a phenomenon called the <strong>entourage effect</strong>.</p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { name: "Myrcene",       icon: Moon,         effect: "Sedating, muscle relaxant, earthy" },
-                { name: "Linalool",      icon: Heart,        effect: "Calming, anti-anxiety, floral" },
-                { name: "Limonene",      icon: Zap,          effect: "Uplifting, mood-enhancing, citrus" },
-                { name: "Caryophyllene", icon: FlaskConical, effect: "Anti-inflammatory, spicy" },
-                { name: "Pinene",        icon: Brain,        effect: "Alertness, memory, pine" },
-                { name: "Terpinolene",   icon: Leaf,         effect: "Mildly sedating, antioxidant" },
-              ].map(({ name, icon: Icon, effect }) => (
-                <div key={name} className="border border-rule p-2.5">
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <Icon className="h-3 w-3 shrink-0 text-ink/40" />
-                    <span className="text-[12px] font-semibold text-ink">{name}</span>
+                { name: "Myrcene",       icon: Moon,        color: "bg-green-50 border-green-200 text-green-800",  effect: "Sedating, muscle relaxant, earthy" },
+                { name: "Linalool",      icon: Heart,       color: "bg-purple-50 border-purple-200 text-purple-800", effect: "Calming, anti-anxiety, floral" },
+                { name: "Limonene",      icon: Zap,         color: "bg-yellow-50 border-yellow-200 text-yellow-800", effect: "Uplifting, mood-enhancing, citrus" },
+                { name: "Caryophyllene", icon: FlaskConical,color: "bg-orange-50 border-orange-200 text-orange-800", effect: "Anti-inflammatory, spicy" },
+                { name: "Pinene",        icon: Brain,       color: "bg-teal-50 border-teal-200 text-teal-800",      effect: "Alertness, memory, pine" },
+                { name: "Terpinolene",   icon: Leaf,        color: "bg-blue-50 border-blue-200 text-blue-800",      effect: "Mildly sedating, antioxidant" },
+              ].map(({ name, icon: Icon, color, effect }) => (
+                <div key={name} className={`border rounded-xl p-2.5 ${color}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Icon className="h-3 w-3 shrink-0" />
+                    <span className="text-[12px] font-semibold">{name}</span>
                   </div>
-                  <p className="text-[11px] text-ink/55">{effect}</p>
+                  <p className="text-[11px] opacity-80">{effect}</p>
                 </div>
               ))}
             </div>
@@ -218,18 +205,20 @@ const SECTIONS: FAQSection[] = [
         a: (
           <div className="space-y-3">
             <p>Israeli medical cannabis licenses use a <strong>T/C category system</strong> defined by the Ministry of Health. The <strong>T</strong> indicates the maximum allowed THC percentage, and the <strong>C</strong> indicates the minimum required CBD percentage.</p>
-            <div className="divide-y divide-rule border border-rule">
+            <div className="space-y-2">
               {[
-                { cat: "T20/C4",   thc: "≤ 20%", cbd: "≥ 4%",   desc: "Balanced — common for pain and insomnia" },
-                { cat: "T22/C4",   thc: "≤ 22%", cbd: "≥ 4%",   desc: "Higher THC — for chronic or severe pain" },
-                { cat: "T10/C10",  thc: "≤ 10%", cbd: "≥ 10%",  desc: "Balanced ratio — anxiety, inflammation" },
-                { cat: "T1/CBD",   thc: "≤ 1%",  cbd: "High",   desc: "Near-zero THC — epilepsy, children" },
+                { cat: "T20/C4",   thc: "Up to 20%", cbd: "Min. 4%",  desc: "Balanced — common for pain and insomnia" },
+                { cat: "T22/C4",   thc: "Up to 22%", cbd: "Min. 4%",  desc: "Higher THC — for chronic or severe pain" },
+                { cat: "T10/C10",  thc: "Up to 10%", cbd: "Min. 10%", desc: "Balanced ratio — anxiety, inflammation" },
+                { cat: "T1/CBD",   thc: "Up to 1%",  cbd: "High CBD", desc: "Near-zero THC — epilepsy, children" },
               ].map(({ cat, thc, cbd, desc }) => (
-                <div key={cat} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
-                  <span className="w-20 shrink-0 font-data text-[13px] font-semibold text-ink">{cat}</span>
-                  <span className="shrink-0 font-data text-[11px] text-resin">THC {thc}</span>
-                  <span className="shrink-0 font-data text-[11px] text-clinic">CBD {cbd}</span>
-                  <span className="text-[12px] text-ink/50">{desc}</span>
+                <div key={cat} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                  <span className="font-mono font-bold text-emerald-700 text-[13px] w-20 shrink-0">{cat}</span>
+                  <div className="flex gap-2 text-[11px] shrink-0">
+                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">{thc}</span>
+                    <span className="bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-medium">{cbd}</span>
+                  </div>
+                  <span className="text-[12px] text-slate-500">{desc}</span>
                 </div>
               ))}
             </div>
@@ -241,61 +230,70 @@ const SECTIONS: FAQSection[] = [
   {
     id: "algorithm",
     icon: Brain,
+    iconColor: "text-blue-700",
+    iconBg: "bg-blue-50",
     title: "How the algorithm works",
     subtitle: "Inside the recommendation engine",
     items: [
       {
         q: "How does MediCanna generate recommendations?",
-        tags: ["algorithm", "rule sum", "how it works"],
+        tags: ["algorithm", "AI", "how it works"],
         a: (
           <div className="space-y-3">
             <p>The MediCanna recommendation engine uses a <strong>rule-based scoring algorithm</strong>. It does not use black-box machine learning — every decision is explainable and auditable by your physician.</p>
-            <p className="text-[12px] text-ink/50">The point values below are the ones in <span className="font-data">src/lib/recommendationEngine.ts</span>. If the engine changes, this list is wrong until it is updated with it.</p>
-            <div className="divide-y divide-rule border border-rule">
+            <p className="text-[12px] text-slate-400">The point values below are the ones in <span className="font-mono">src/lib/recommendationEngine.ts</span>. If the engine changes, this list is wrong until it is updated with it.</p>
+            <div className="space-y-2">
               {[
                 {
                   step: "1",
                   title: "Clinical filtering",
-                  desc: "Strains that exceed your licensed THC maximum or fall below your minimum CBD are excluded before scoring. If nothing passes, the page says so rather than widening the pool.",
+                  desc: "Strains that exceed your licensed THC maximum or fall below your minimum CBD are immediately excluded.",
+                  color: "bg-red-50 border-red-200",
+                  badge: "bg-red-100 text-red-700",
                 },
                 {
                   step: "2",
                   title: "Evidence-rated condition matching",
                   desc: "Your condition is matched against the strain_conditions table, which grades each indication: strong evidence adds 60 points, moderate 40, anecdotal 20. A strain with no table entry falls back to its listed medical uses for 40.",
+                  color: "bg-amber-50 border-amber-200",
+                  badge: "bg-amber-100 text-amber-700",
                 },
                 {
                   step: "3",
                   title: "Category scoring",
                   desc: "Indica adds 18 for pain, insomnia and PTSD; sativa 18 for low mood and fatigue; hybrid 14 for anxiety.",
+                  color: "bg-purple-50 border-purple-200",
+                  badge: "bg-purple-100 text-purple-700",
                 },
                 {
                   step: "4",
                   title: "Terpene bonuses",
                   desc: "Known terpene-condition pairs (Linalool for anxiety, Myrcene for pain) add 12 points each. A CBD-dominant profile adds 10.",
+                  color: "bg-blue-50 border-blue-200",
+                  badge: "bg-blue-100 text-blue-700",
                 },
                 {
                   step: "5",
                   title: "Safety and licence adjustments",
-                  desc: "Over 60 with THC above 20% takes a 15-point penalty. Sitting inside your licensed THC ceiling adds 5, and meeting your CBD floor adds another 5.",
+                  desc: "Over 60 with THC above 20% takes a 15-point penalty. Sitting inside your licensed THC ceiling adds 5, and meeting your CBD floor adds another 5. Your own feedback history adjusts the total too, weighted by how many sessions you have logged.",
+                  color: "bg-slate-50 border-slate-200",
+                  badge: "bg-slate-100 text-slate-600",
                 },
                 {
                   step: "6",
-                  title: "Feedback history",
-                  desc: "Your own past effectiveness scores adjust the total, weighted by how many sessions you have logged. A side-effect rate above half subtracts 10.",
-                },
-                {
-                  step: "7",
                   title: "Top 3 output",
                   desc: "Qualifying strains are ranked by total rule sum and the top 3 are shown with their rationale, then written to your record as pending a doctor's review.",
+                  color: "bg-emerald-50 border-emerald-200",
+                  badge: "bg-emerald-100 text-emerald-700",
                 },
-              ].map(({ step, title, desc }) => (
-                <div key={step} className="flex gap-3 p-3">
-                  <span className="h-fit shrink-0 border border-ink/25 px-2 py-0.5 font-data text-[10px] uppercase tracking-[0.1em] text-ink">
-                    {step}
+              ].map(({ step, title, desc, color, badge }) => (
+                <div key={step} className={`flex gap-3 border rounded-xl p-3 ${color}`}>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full h-fit shrink-0 ${badge}`}>
+                    Step {step}
                   </span>
                   <div>
-                    <p className="text-[13px] font-semibold text-ink">{title}</p>
-                    <p className="mt-0.5 text-[12px] text-ink/60">{desc}</p>
+                    <p className="text-[13px] font-semibold text-slate-800">{title}</p>
+                    <p className="text-[12px] text-slate-600 mt-0.5">{desc}</p>
                   </div>
                 </div>
               ))}
@@ -309,13 +307,13 @@ const SECTIONS: FAQSection[] = [
         a: (
           <div className="space-y-3">
             <p>Each recommendation carries a <strong>rule sum</strong>: the total of the points listed above, clamped to a 0–98 range. It is a ranking device, and nothing more.</p>
-            <div className="flex gap-2 border border-rule bg-paper p-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" />
-              <p className="text-[12px] leading-relaxed text-ink/70">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-amber-800 leading-relaxed">
                 It is deliberately <strong>not</strong> shown as a percentage or a match score. A sum of
-                rule weights is not a probability that a strain will work for you, and presenting it
-                as "84% match" would imply a confidence the engine cannot support. An earlier version
-                of this app did exactly that; the percentage ring was removed for this reason.
+                rule weights is not a probability that a strain will work for you, and presenting it as
+                "84% match" would imply a confidence the engine cannot support. An earlier version of
+                this app did exactly that; the percentage ring was removed for this reason.
               </p>
             </div>
             <p>The number is useful for comparing the three strains <em>to each other</em> for your profile. It cannot tell you how well any of them will work — that is what your physician's review and your own logged feedback are for.</p>
@@ -327,22 +325,22 @@ const SECTIONS: FAQSection[] = [
         tags: ["feedback", "learning", "personalisation"],
         a: (
           <div className="space-y-3">
-            <p>Yes — partially. Your submitted feedback (effectiveness scores and side-effect reports) builds a longitudinal treatment history that feeds directly into step 6 of the scoring above. It is used to:</p>
+            <p>Yes — partially. The current version uses your submitted feedback (effectiveness scores and side effect reports) to build a longitudinal treatment history. This data is used in future recommendation cycles to:</p>
             <ul className="space-y-2">
               {[
                 "Raise strains you have personally rated well, weighted by how many sessions you have logged",
                 "Penalise strains for which you reported side effects in more than half your sessions",
                 "Let your physician review efficacy trends over time",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-[13px] text-ink/75">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 bg-ink/40" />
+                <li key={item} className="flex items-start gap-2 text-[13px] text-slate-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
                   {item}
                 </li>
               ))}
             </ul>
-            <div className="flex gap-2 border border-rule bg-paper p-3">
-              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" />
-              <p className="text-[12px] text-ink/70">Feedback weight rises with the number of logged sessions and is capped at five. Below that, your history nudges the ranking rather than driving it.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex gap-2">
+              <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-blue-700">Feedback weight rises with the number of logged sessions and is capped at five. Below that, your history nudges the ranking rather than driving it.</p>
             </div>
           </div>
         ),
@@ -352,15 +350,15 @@ const SECTIONS: FAQSection[] = [
         tags: ["disclaimer", "legal", "prescription"],
         a: (
           <div className="space-y-3">
-            <div className="flex gap-3 border border-flag/40 border-l-2 border-l-flag bg-flag/5 p-4">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="mb-1 font-data text-[10px] uppercase tracking-[0.12em] text-flag">Important disclaimer</p>
-                <p className="text-[12px] leading-relaxed text-flag">MediCanna recommendations are <strong>clinical decision support</strong>, not prescriptions. They are intended to assist — not replace — the judgment of a licensed physician.</p>
+                <p className="text-[13px] font-semibold text-amber-800 mb-1">Important disclaimer</p>
+                <p className="text-[12px] text-amber-700 leading-relaxed">MediCanna recommendations are <strong>clinical decision support</strong>, not prescriptions. They are intended to assist — not replace — the judgment of a licensed physician.</p>
               </div>
             </div>
             <p>All recommendations must be reviewed and approved by your treating physician before purchase or use. The algorithm cannot account for:</p>
-            <ul className="space-y-1 text-[12px] text-ink/60">
+            <ul className="space-y-1 text-[12px] text-slate-600">
               {[
                 "Drug-drug interactions with your current medications",
                 "Contraindications specific to your full medical history",
@@ -368,7 +366,7 @@ const SECTIONS: FAQSection[] = [
                 "Changes in your condition since your last profile update",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 bg-ink/30" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0 mt-1.5" />
                   {item}
                 </li>
               ))}
@@ -381,6 +379,8 @@ const SECTIONS: FAQSection[] = [
   {
     id: "usage",
     icon: Clock,
+    iconColor: "text-orange-700",
+    iconBg: "bg-orange-50",
     title: "Dosing & safe use",
     subtitle: "Practical guidance for patients",
     items: [
@@ -388,7 +388,7 @@ const SECTIONS: FAQSection[] = [
         q: "What are the main consumption methods?",
         tags: ["consumption", "dosing", "methods"],
         a: (
-          <div className="divide-y divide-rule border border-rule">
+          <div className="space-y-2">
             {[
               { method: "Dried flower (vaporiser)", onset: "5–15 min",  duration: "2–3 hrs",  best: "Fast-acting pain or anxiety relief" },
               { method: "Oil drops (sublingual)",   onset: "15–45 min", duration: "4–6 hrs",  best: "Consistent daily dosing" },
@@ -396,15 +396,17 @@ const SECTIONS: FAQSection[] = [
               { method: "Joints / smoking",         onset: "5–10 min",  duration: "2–3 hrs",  best: "Fast relief, but lung risk" },
               { method: "Topical",                  onset: "30–60 min", duration: "2–4 hrs",  best: "Localised pain, no systemic effect" },
             ].map(({ method, onset, duration, best }) => (
-              <div key={method} className="px-3 py-2.5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <span className="text-[12px] font-semibold text-ink">{method}</span>
-                  <span className="font-data text-[11px] text-ink/60">
-                    <span className="text-ink/35">onset</span> {onset}
-                    <span className="ml-3 text-ink/35">duration</span> {duration}
-                  </span>
+              <div key={method} className="grid grid-cols-4 gap-2 items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                <span className="text-[12px] font-semibold text-slate-800 col-span-2">{method}</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-slate-400">Onset</span>
+                  <span className="text-[11px] font-medium text-slate-700">{onset}</span>
                 </div>
-                <p className="mt-1 text-[11px] text-ink/50">{best}</p>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-slate-400">Duration</span>
+                  <span className="text-[11px] font-medium text-slate-700">{duration}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 col-span-4 pt-1 border-t border-slate-100">{best}</p>
               </div>
             ))}
           </div>
@@ -423,11 +425,11 @@ const SECTIONS: FAQSection[] = [
                 { title: "Titrate gradually",                    desc: "Increase by small increments only after 3–5 days at the same dose, if needed." },
                 { title: "Keep a usage log",                     desc: "Track dose, method, timing, and effects. Use the Feedback feature to log every session." },
               ].map(({ title, desc }) => (
-                <div key={title} className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" />
+                <div key={title} className="flex gap-3 items-start">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[13px] font-semibold text-ink">{title}</p>
-                    <p className="mt-0.5 text-[12px] text-ink/50">{desc}</p>
+                    <p className="text-[13px] font-semibold text-slate-800">{title}</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">{desc}</p>
                   </div>
                 </div>
               ))}
@@ -445,20 +447,23 @@ const AccordionItem = ({ item, isOpen, onToggle }: {
   isOpen: boolean;
   onToggle: () => void;
 }) => (
-  <div className={`border transition-colors ${isOpen ? "border-ink/30" : "border-rule"}`}>
+  <div className={`border rounded-xl overflow-hidden transition-all duration-200 ${
+    isOpen ? "border-emerald-200 shadow-sm" : "border-slate-200"
+  }`}>
     <button
       onClick={onToggle}
-      aria-expanded={isOpen}
-      className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
-        isOpen ? "bg-paper" : "bg-white hover:bg-paper"
+      className={`w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors ${
+        isOpen ? "bg-emerald-50/60" : "bg-white hover:bg-slate-50"
       }`}
     >
-      <span className={`pr-4 text-[14px] font-semibold leading-snug ${isOpen ? "text-ink" : "text-ink/80"}`}>
+      <span className={`text-[14px] font-semibold pr-4 leading-snug ${
+        isOpen ? "text-emerald-800" : "text-slate-800"
+      }`}>
         {item.q}
       </span>
       <ChevronDown
         className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-          isOpen ? "rotate-180 text-ink" : "text-ink/35"
+          isOpen ? "rotate-180 text-emerald-600" : "text-slate-400"
         }`}
       />
     </button>
@@ -468,12 +473,12 @@ const AccordionItem = ({ item, isOpen, onToggle }: {
       className="overflow-hidden transition-all duration-300"
       style={{ maxHeight: isOpen ? "2000px" : "0px" }}
     >
-      <div className="border-t border-rule bg-white px-4 py-4 text-[13px] leading-relaxed text-ink/65">
+      <div className="px-4 py-4 bg-white border-t border-slate-100 text-[13px] text-slate-600 leading-relaxed">
         {item.a}
         {item.tags && (
-          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-rule pt-3">
+          <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-slate-100">
             {item.tags.map((tag) => (
-              <span key={tag} className="border border-rule px-2 py-0.5 font-data text-[10px] text-ink/40">
+              <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                 #{tag}
               </span>
             ))}
@@ -510,43 +515,50 @@ const InfoCenterPage = () => {
   const totalResults = filteredSections.reduce((n, s) => n + s.items.length, 0);
 
   return (
-    <div className="mx-auto max-w-3xl py-2 animate-in fade-in duration-500">
+    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500">
 
-      {/* ── MASTHEAD ─────────────────────────────────────────────────────── */}
-      <header className="mb-6 border-b-2 border-ink pb-5">
-        <p className="font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
-          Knowledge centre
-        </p>
-        <h1 className="mt-2 flex items-center gap-2 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink">
-          <BookOpen className="h-5 w-5 shrink-0 text-ink/40" />
-          Reference
-        </h1>
-        <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-ink/50">
-          Clinical guides on medical cannabis, cannabinoids, terpenes, and how the recommendation engine works.
-        </p>
+      {/* ── HERO ──────────────────────────────────────────────────────────── */}
+      <div
+        className="rounded-2xl p-8 text-white relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #0a2d1e 0%, #0f4d32 60%, #136040 100%)" }}
+      >
+        {/* Decorative dots */}
+        <div className="absolute top-4 right-6 w-32 h-32 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #22c55e, transparent)" }} />
 
-        <div className="relative mt-3 max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search guides and FAQs"
-            placeholder="Search guides and FAQs…"
-            className="h-9 w-full border border-rule bg-white pl-9 pr-3 text-[13px] text-ink outline-none placeholder:text-ink/25 focus:border-ink/40 focus:ring-1 focus:ring-ink/20"
-          />
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-white/15 border border-white/10 text-emerald-200 text-[11px] font-semibold uppercase tracking-wide">
+            <BookOpen className="h-3.5 w-3.5" />
+            Knowledge centre
+          </div>
+          <h1 className="text-2xl font-bold mb-2 tracking-tight">
+            Everything you need to know
+          </h1>
+          <p className="text-emerald-200/80 text-[14px] mb-6 max-w-lg leading-relaxed">
+            Clinical guides on medical cannabis, cannabinoids, terpenes, and how our recommendation algorithm works.
+          </p>
+
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search guides and FAQs…"
+              className="w-full h-11 rounded-xl pl-10 pr-4 text-[13px] bg-white text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-400/60"
+            />
+          </div>
         </div>
-      </header>
-
-      <div className="space-y-6">
+      </div>
 
       {/* ── SECTION FILTER TABS ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setActiveSection(null)}
-          className={`inline-flex items-center gap-1.5 border px-3 py-1.5 font-data text-[10px] uppercase tracking-[0.1em] transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
             !activeSection
-              ? "border-ink bg-ink text-paper"
-              : "border-rule bg-white text-ink/55 hover:border-ink/35 hover:text-ink"
+              ? "bg-slate-900 text-white border-slate-900"
+              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
           }`}
         >
           All topics
@@ -558,13 +570,13 @@ const InfoCenterPage = () => {
             <button
               key={s.id}
               onClick={() => setActiveSection(isActive ? null : s.id)}
-              className={`inline-flex items-center gap-1.5 border px-3 py-1.5 font-data text-[10px] uppercase tracking-[0.1em] transition-colors ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
                 isActive
-                  ? "border-ink bg-ink text-paper"
-                  : "border-rule bg-white text-ink/55 hover:border-ink/35 hover:text-ink"
+                  ? `${s.iconBg} ${s.iconColor} border-current`
+                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
               }`}
             >
-              <Icon className="h-3 w-3" />
+              <Icon className={`h-3.5 w-3.5 ${isActive ? s.iconColor : ""}`} />
               {s.title.split(" ")[0]}
             </button>
           );
@@ -573,7 +585,7 @@ const InfoCenterPage = () => {
 
       {/* Search result count */}
       {searchQuery && (
-        <p className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/45">
+        <p className="text-[13px] text-slate-500 -mt-4">
           {totalResults === 0
             ? `No results for "${searchQuery}"`
             : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${searchQuery}"`}
@@ -584,15 +596,17 @@ const InfoCenterPage = () => {
       {filteredSections.map((section) => {
         const Icon = section.icon;
         return (
-          <div key={section.id} className="space-y-2">
+          <div key={section.id} className="space-y-3">
             {/* Section header */}
-            <div className="flex items-center gap-2.5 border-b border-rule pb-2">
-              <Icon className="h-4 w-4 shrink-0 text-ink/40" />
-              <div>
-                <h2 className="font-display text-[15px] font-semibold text-ink">{section.title}</h2>
-                <p className="text-[12px] text-ink/45">{section.subtitle}</p>
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${section.iconBg}`}>
+                <Icon className={`h-5 w-5 ${section.iconColor}`} />
               </div>
-              <span className="ml-auto font-data text-[10px] uppercase tracking-[0.1em] text-ink/35">
+              <div>
+                <h2 className="text-[16px] font-bold text-slate-900">{section.title}</h2>
+                <p className="text-[12px] text-slate-400">{section.subtitle}</p>
+              </div>
+              <span className="ml-auto text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                 {section.items.length} guides
               </span>
             </div>
@@ -617,26 +631,25 @@ const InfoCenterPage = () => {
 
       {/* ── BOTTOM CTA ───────────────────────────────────────────────────── */}
       {!searchQuery && !activeSection && (
-        <div className="flex flex-col items-center gap-4 border border-rule bg-white p-5 sm:flex-row">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4">
           <div className="flex-1 text-center sm:text-left">
-            <p className="font-display text-[14px] font-semibold text-ink">
-              Ready for your personalised recommendation?
+            <p className="text-[15px] font-bold text-emerald-900 mb-1">
+              Ready to get your personalised recommendation?
             </p>
-            <p className="mt-0.5 text-[12px] text-ink/50">
-              The engine matches your medical profile against the formulary, then a clinician reviews the result.
+            <p className="text-[13px] text-emerald-700">
+              Our algorithm matches your medical profile to the most suitable strains.
             </p>
           </div>
           <button
             onClick={() => navigate("/recommendations")}
-            className="inline-flex h-10 shrink-0 items-center gap-2 bg-ink px-5 font-data text-[10px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors shrink-0"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="h-4 w-4" />
             Get recommendations
-            <ArrowRight className="h-3 w-3" />
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
-      </div>
     </div>
   );
 };

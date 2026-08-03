@@ -12,21 +12,18 @@ const DEMO_PATIENT_USER_ID = "d5186dd5-23f1-47ae-b7b1-7e0dc59776b0";
 
 type Mode = "signin" | "signup";
 
-// Nothing on this page is clinical data, so font-data appears only as the
-// small-caps instrument chrome the restyled pages use for labels and actions —
-// never on the headings or the prose.
 const Field = ({
   label, children,
 }: { label: string; children: React.ReactNode }) => (
   <label className="block">
-    <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/45">{label}</span>
-    <div className="mt-1.5">{children}</div>
+    <span className="text-[12px] font-semibold text-slate-600">{label}</span>
+    <div className="mt-1">{children}</div>
   </label>
 );
 
 const inputCls =
-  "w-full h-10 px-3 border border-rule bg-white text-[13px] text-ink " +
-  "placeholder:text-ink/25 outline-none focus:border-ink/40 focus:ring-1 focus:ring-ink/20";
+  "w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-[13px] text-slate-900 " +
+  "placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -158,17 +155,19 @@ const LoginPage = () => {
 
   // ── Post-signup confirmation screen ────────────────────────────────────────
   if (awaitConfirm) return (
-    <div className="min-h-screen bg-paper flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-3 border border-rule bg-white p-6 text-center">
-        <MailCheck className="mx-auto h-6 w-6 text-ink/45" />
-        <h2 className="font-display text-[16px] font-semibold text-ink">Confirm your email</h2>
-        <p className="text-[13px] leading-relaxed text-ink/55">
-          We sent a confirmation link to <span className="font-medium text-ink">{email}</span>.
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-3">
+        <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center">
+          <MailCheck className="h-6 w-6 text-emerald-600" />
+        </div>
+        <h2 className="text-[16px] font-semibold text-slate-900">Confirm your email</h2>
+        <p className="text-[13px] text-slate-500 leading-relaxed">
+          We sent a confirmation link to <span className="font-medium text-slate-700">{email}</span>.
           Open it, then sign in here.
         </p>
         <button
           onClick={() => { setAwaitConfirm(false); setMode("signin"); }}
-          className="font-data text-[10px] uppercase tracking-[0.12em] text-ink/60 underline underline-offset-4 transition-colors hover:text-ink"
+          className="text-[13px] font-semibold text-emerald-700 hover:text-emerald-600"
         >
           Back to sign in
         </button>
@@ -177,38 +176,28 @@ const LoginPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-paper flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
-        {/* Masthead — the same rule-under-title header the report pages carry */}
-        <div className="mb-6 border-b-2 border-ink pb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-ink">
-              <Leaf className="h-4 w-4 text-paper" />
-            </span>
-            <div>
-              <h1 className="font-display text-[22px] font-semibold leading-none tracking-tight text-ink">
-                MediCanna
-              </h1>
-              <p className="mt-1.5 font-data text-[10px] uppercase tracking-[0.2em] text-ink/45">
-                Clinical Decision Support
-              </p>
-            </div>
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-7">
+          <div className="w-12 h-12 bg-emerald-700 rounded-2xl flex items-center justify-center mb-3 shadow-sm">
+            <Leaf className="h-6 w-6 text-white" />
           </div>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">MediCanna</h1>
+          <p className="text-[13px] text-slate-400 mt-0.5">Clinical Decision Support System</p>
         </div>
 
-        <div className="space-y-4 border border-rule bg-white p-5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
 
-          {/* Mode switch — an underlined register, not a pill toggle */}
-          <div className="flex gap-5 border-b border-rule">
+          {/* Mode switch */}
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
             {(["signin", "signup"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setErrorMsg(""); }}
-                className={`-mb-px border-b-2 pb-2 font-data text-[10px] uppercase tracking-[0.12em] transition-colors ${
-                  mode === m
-                    ? "border-ink text-ink"
-                    : "border-transparent text-ink/40 hover:text-ink/70"
+                className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                  mode === m ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 {m === "signin" ? "Sign in" : "Create account"}
@@ -216,9 +205,8 @@ const LoginPage = () => {
             ))}
           </div>
 
-          {/* A blocked sign-in is the negative verdict on this page, so flag. */}
           {errorMsg && (
-            <p className="border-l-2 border-flag bg-flag/5 px-3 py-2 text-[12px] text-flag">
+            <p className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               {errorMsg}
             </p>
           )}
@@ -254,7 +242,7 @@ const LoginPage = () => {
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
                 aria-label={showPw ? "Hide password" : "Show password"}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink/35 transition-colors hover:text-ink/70"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -264,34 +252,32 @@ const LoginPage = () => {
           <button
             onClick={submit}
             disabled={loading}
-            className="flex h-10 w-full items-center justify-center gap-2 bg-ink font-data text-[11px] uppercase tracking-[0.12em] text-paper transition-colors hover:bg-ink/85 disabled:opacity-60"
+            className="w-full h-11 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
           >
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {mode === "signup" ? "Create account" : "Sign in"}
           </button>
         </div>
 
         {/* Demo access — seeded data for the exhibition */}
         <div className="mt-5">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="h-px flex-1 bg-rule" />
-            <span className="font-data text-[10px] uppercase tracking-[0.14em] text-ink/40">Demo access</span>
-            <div className="h-px flex-1 bg-rule" />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-[11px] uppercase tracking-wider text-slate-400">Demo access</span>
+            <div className="flex-1 h-px bg-slate-200" />
           </div>
-          {/* Both roles are neutral ink: patient vs clinician is a route, not a
-              clinical reading, so neither earns a colour of its own. */}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={demoPatient} disabled={loading}
-              className="flex h-10 items-center justify-center gap-2 border border-rule bg-white font-data text-[10px] uppercase tracking-[0.1em] text-ink/65 transition-colors hover:border-ink/35 hover:text-ink disabled:opacity-50"
+              className="flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all disabled:opacity-50"
             >
-              <User className="h-3.5 w-3.5" /> Demo patient
+              <User className="h-3.5 w-3.5 text-emerald-600" /> Demo patient
             </button>
             <button
               onClick={demoDoctor} disabled={loading}
-              className="flex h-10 items-center justify-center gap-2 border border-rule bg-white font-data text-[10px] uppercase tracking-[0.1em] text-ink/65 transition-colors hover:border-ink/35 hover:text-ink disabled:opacity-50"
+              className="flex items-center justify-center gap-2 h-10 rounded-xl border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-all disabled:opacity-50"
             >
-              <Stethoscope className="h-3.5 w-3.5" /> Demo clinician
+              <Stethoscope className="h-3.5 w-3.5 text-blue-600" /> Demo clinician
             </button>
           </div>
         </div>
