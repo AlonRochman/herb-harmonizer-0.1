@@ -44,8 +44,9 @@ claims consistent.
   for any auth user on first sign-in.
 - `src/pages/LoginPage.tsx` — email+password sign-in/sign-up + two demo buttons
   (Demo patient / Demo clinician) that use seeded rows without Auth.
-- `src/pages/RecommendationsPage.tsx` — redesigned as a "clinical instrument"
-  (see Design language). Computes top-3, persists them, enforces constraints.
+- `src/pages/RecommendationsPage.tsx` — computes top-3, persists them, enforces
+  constraints. Shows the rule sum via `ScoreBadge`; the % match ring it replaced
+  is not coming back (see Design language).
 - `src/pages/DashboardPage.tsx` — doctor view: pending recommendations,
   approve/reject writes `status`, `review_note`, `reviewed_at`.
 - `src/pages/PatientInputPage.tsx` — medical profile form. A logged-in patient
@@ -116,54 +117,43 @@ Patient conditions in seeded data are essentially "Chronic Pain" and "Anxiety".
 - Keep patient data scoped: every usage/feedback/recommendation query filters
   by the resolved `patient_id`. No "fallback to any patient" for writes.
 
-## Design language (Recommendations page; roll out gradually)
+## Design language (reverted 2026-08-03 — read this before restyling anything)
 
-The product is a clinical instrument, not a wellness app. Tokens in
-`tailwind.config.ts`: `ink #14201C`, `paper #F7F8F6`, `rule #D8DCD6`,
-`resin #B4762A` (**always means THC**), `clinic #2F7A72` (**always means CBD**),
-`flag #A63D2F` (limit at risk). Colour carries information, never decoration.
-`font-data` = IBM Plex Mono, used ONLY for clinical data (values, grades, ranks).
-Signature element: chemotype axis (real CBD/THC ratio, Type I/II/III) +
-licence headroom meter ("X% of Y% ceiling"). The % match ring was deliberately
-removed — a normalised rule sum is not a probability; don't bring it back.
-The dashboard now follows the same language: a local `Panel` replaces shadcn
-`Card`, THC/CBD chips use resin/clinic, review status uses ink weight with flag
-reserved for the negative verdict, and the efficacy chart is ink (efficacy is not
-a cannabinoid, so clinic would have been wrong). `match_score` is labelled "rule
-sum", never "%". Feedback followed on 2026-08-03 (efficacy on the ink scale with
-flag at the poor end; THC/CBD chips moved off amber/teal, which were close
-enough to resin/clinic to mislead). Login and the strain catalogue followed on
-2026-08-03. Login carries no clinical values at all, so font-data there is only
-the small-caps chrome (labels, actions) and never the headings or prose; a
-blocked sign-in takes flag, and the demo patient/clinician buttons are neutral
-ink because which role you demo is a route, not a clinical reading. The
-catalogue moved THC to resin and CBD to clinic, and dropped both hue maps: the
-indica/sativa/hybrid colours were purple/amber/teal, and amber/teal sat close
-enough to resin/clinic to read as THC and CBD on a card showing both, while a
-terpene is neither a cannabinoid nor a risk. Its five-star rating was **deleted,
-not restyled** — score and count were both `Math.random()`, rerolled on every
-filter change, and the mono face on that page now means "measured". Same call as
-the % match ring.
+**The product uses the original emerald/slate + shadcn look. Do not reintroduce
+the "clinical instrument" language.** It was rolled across the whole app and
+then rolled back on the same day, at the user's request: the verdict was that it
+read as generic, and was less legible and less pleasant to use than what it
+replaced. Trust that verdict over the arguments in the commit messages — the
+reasoning was self-consistent and still lost to how it actually felt.
 
-**The rollout is complete (2026-08-03).** Every page and shared component is on
-the tokens; `grep -E '(emerald|slate|teal|amber|purple|blue|rose)-[0-9]'` over
-`src/` returns nothing, and that grep is the regression check. The shell was the
-last big gap and mattered most: the navbar is on every screen, and `App.tsx`
-was still `bg-slate-50` under pages that assume paper. The navbar now carries
-the same `border-b-2 border-ink` masthead rule the report pages open with, so
-the nav reads as part of the same document.
+The clinical tokens (`ink`, `paper`, `rule`, `resin`, `clinic`, `flag`) and
+`font-data` are still declared in `tailwind.config.ts`. Nothing references them
+now. Leave them or delete them, but do not treat their presence as intent.
 
-Rules that settled while rolling it out:
-- **Role is a route, not a clinical reading.** Doctor vs patient never gets a
-  colour (login demo buttons, the navbar role pill, Index tool tiles).
-- **flag is for genuine risk**, not for form friction. Dosage safety notes,
-  licence/load failures and the prescription disclaimer take flag; a
-  required-field asterisk does not.
-- **An unread count is not a clinical risk** — the bell badge is ink, not red.
-- **Documents are not cannabinoids.** The MOH licence block and the T/C category
-  code are ink; the THC and CBD numbers inside them carry resin and clinic.
-- **Nominal categories get typography, not hue** — indica/sativa/hybrid,
-  experience level, notification kind, terpene names.
+What the current look is: white `rounded-xl`/`rounded-2xl` cards on `bg-slate-50`,
+slate text ramp, emerald as the primary accent, per-feature accent hues (amber
+THC / teal CBD chips, purple-amber-teal strain categories, coloured terpene and
+notification tiles), shadcn `Card`/`Button`/`Input` used as-is.
+
+Three things were **not** restored with it, deliberately, because they were
+content or correctness problems rather than styling:
+
+- **The catalogue's five-star rating.** Score and review count were both
+  `Math.random()`, rerolled on every filter change. If a rating belongs there,
+  build it from `AVG(feedback.effectiveness_score)`.
+- **The % match ring on Recommendations.** `matchScore` is a clamped sum of rule
+  weights, not a probability; "84% match" claimed a confidence the engine cannot
+  back. The number is still shown in the same slot, labelled "rule sum".
+  `ScoreBadge` in RecommendationsPage.tsx.
+- **The Index storefront.** The marketing hero copy, the Flower/Oils/Joints/Mini
+  tiles and the Popular/Price-drops/New-arrivals chips are gone. Their links
+  were already broken — the tiles passed `/strains?cat=`, which the catalogue
+  never reads, and the chips searched for words matching no strain. The emerald
+  hero styling and the search box that does work were kept.
+
+The Info Centre's engine documentation was also corrected and kept corrected
+(rule-sum FAQ, real point values, feedback scoped to the one patient). See the
+Testing section — that page is the thing most likely to go stale.
 
 ## Roles
 
@@ -241,7 +231,8 @@ Done 2026-08-03 (third session):
   Design language for the two colour fixes and the one deletion.
 - The catalogue's four range inputs gained aria-labels; they had none.
 
-Done 2026-08-03 (fourth session) — rollout finished:
+Done 2026-08-03 (fourth session) — the restyle rollout, SINCE REVERTED.
+Kept here only for what it found; the styling described below is gone:
 - App shell + Navbar + LoadError + AccessibilityWidget on the tokens. This was
   the actual reason the restyled pages looked like a different product.
 - PatientInput, Dosage, Licence and Info Centre restyled. Every flow is
@@ -261,13 +252,33 @@ Done 2026-08-03 (fourth session) — rollout finished:
   that worked for *similar patients* — the feedback index is scoped to the one
   patient. If the engine's weights change, that FAQ is the thing that goes stale.
 
+Done 2026-08-03 (fifth session) — the restyle was reverted:
+- Every page and shared component is back on the original emerald/shadcn look,
+  including Recommendations, Dashboard and Feedback from the earlier sessions.
+  See Design language for why, and for the three things that stayed removed.
+- The revert was styling-only. Nothing regressed: every Postgrest read still
+  goes through read()/readOr(), <LoadError> is still rendered where an empty
+  state could be a failure, the bell tests still pass, and every aria-label
+  added during the restyle was kept.
+- Recommendations was the one page needing a hand-merge: its restyle landed
+  *before* the read-helper commit, so no single commit had both the old design
+  and that QA. Markup from 149aac5, read-helper logic re-applied on top, routed
+  through the page's own `constraintWarning` state instead of the `blocked`
+  state the restyle had introduced.
+
+Lesson worth keeping: a design argument that reads well in a commit message is
+not evidence the result is pleasant to use. Roll a visual language onto ONE page
+and get a verdict before spending sessions on the other ten.
+
 Next candidates:
+1. Leave the visual design alone unless asked. If a restyle is revisited, do one
+   page and stop for a verdict (see Design language).
 2. Real RLS policies per `auth.uid()` (requires deciding doctor identity — the
    demo clinician has no Auth account).
 3. Role-guard the routes, and decide the doctor home (see Roles above).
 4. Report gaps (ספר הפרויקט): real screenshots (exist in repo history),
-   STR test-result tables, Gantt, poster, bibliography completion. Take
-   screenshots *after* the remaining pages are restyled, not before.
+   STR test-result tables, Gantt, poster, bibliography completion. The UI is
+   settled now, so screenshots can be taken.
 
 ## Testing
 
