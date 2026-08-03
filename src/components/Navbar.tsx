@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppState } from "@/context/AppContext";
 import { useIsDoctor } from "@/hooks/useIsDoctor";
 import { supabase } from "@/lib/supabaseClient";
+import { read, readOr } from "@/lib/supabaseRead";
 import {
   Leaf, LayoutDashboard, Database, LogOut, User,
   ClipboardList, Sparkles, MessageSquare, Menu, X,
@@ -38,7 +39,6 @@ interface Notif {
   title: string;
   body: string;
   action?: { label: string; path: string };
-  read: boolean;
 }
 
 const NOTIF_ICONS = {
@@ -48,12 +48,60 @@ const NOTIF_ICONS = {
   reminder:     { icon: AlertCircle,  bg: "bg-blue-50",    color: "text-blue-600"    },
 };
 
+// ─── Read-state persistence ───────────────────────────────────────────────────
+// Notification rows are derived from DB state, not stored, so "read" has
+// nowhere to live server-side. Rather than add a column for a prototype
+// affordance, the dismissed IDs live in localStorage keyed by patient — same
+// approach as the accessibility prefs (mc_a11y). Survives reload; per-device
+// by design, which is acceptable for a single-user demo.
+
+// Shapes the bell actually depends on. The Supabase client is untyped, so
+// these are the contract, not generated types.
+interface RecRow   { id: string; strains: { name: string } | null; }
+interface UsageRow {
+  id: string;
+  usage_date: string;
+  strains: { name: string } | null;
+  feedback: { id: string }[] | { id: string } | null;
+}
+
+const READ_KEY = "mc_notif_read";
+const READ_CAP = 100; // derived IDs are stable, but don't grow the blob forever
+
+type ReadMap = Record<string, string[]>;
+
+const loadReadMap = (): ReadMap => {
+  try {
+    const raw = localStorage.getItem(READ_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? (parsed as ReadMap) : {};
+  } catch {
+    return {};
+  }
+};
+
+const loadReadIds = (patientId: string | null): string[] =>
+  patientId ? loadReadMap()[patientId] ?? [] : [];
+
+const saveReadIds = (patientId: string | null, ids: string[]) => {
+  if (!patientId) return;
+  try {
+    const map = loadReadMap();
+    map[patientId] = ids.slice(-READ_CAP);
+    localStorage.setItem(READ_KEY, JSON.stringify(map));
+  } catch {
+    /* storage disabled or full — read state degrades to session-only */
+  }
+};
+
 // ─── Notification Bell (inlined) ─────────────────────────────────────────────
 const NotificationBell = ({ patientId }: { patientId: string | null }) => {
-  const navigate              = useNavigate();
-  const [open,   setOpen]     = useState(false);
-  const [notifs, setNotifs]   = useState<Notif[]>([]);
-  const ref                   = useRef<HTMLDivElement>(null);
+  const navigate                = useNavigate();
+  const [open,    setOpen]      = useState(false);
+  const [notifs,  setNotifs]    = useState<Notif[]>([]);
+  const [failed,  setFailed]    = useState(false);
+  const [readIds, setReadIds]   = useState<string[]>(() => loadReadIds(patientId));
+  const ref                     = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -64,78 +112,96 @@ const NotificationBell = ({ patientId }: { patientId: string | null }) => {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Generate notifications from DB
-  useEffect(() => {
-    if (!patientId) return;
-    const load = async () => {
-      const generated: Notif[] = [];
+  // Switching identity (demo buttons, sign out/in) must not inherit read state
+  useEffect(() => { setReadIds(loadReadIds(patientId)); }, [patientId]);
 
-      // Approved recommendations
-      const { data: recs } = await supabase
+  // Derive notifications from DB state. Read errors are surfaced rather than
+  // swallowed — a failed query must not be indistinguishable from an empty
+  // inbox, which is precisely how this feature stayed broken-but-plausible.
+  const load = useCallback(async () => {
+    if (!patientId) return;
+    const generated: Notif[] = [];
+    let sawFailure = false;
+
+    // Approved recommendations
+    const recs = await readOr<RecRow[]>(
+      "bell: approved recommendations", [],
+      supabase
         .from("recommendations")
         .select("id, status, strains(name), recommendation_date")
         .eq("patient_id", patientId)
         .eq("status", "approved")
-        .limit(2);
+        .limit(2),
+    );
+    sawFailure = sawFailure || recs.failed;
 
-      (recs ?? []).forEach((rec: any) => {
-        generated.push({
-          id:     `rec_${rec.id}`,
-          type:   "approval",
-          title:  "Recommendation approved ✓",
-          body:   `Dr. approved ${rec.strains?.name ?? "your recommendation"}. Ready to use!`,
-          action: { label: "View recommendations", path: "/recommendations" },
-          read:   false,
-        });
+    recs.data.forEach((rec) => {
+      generated.push({
+        id:     `rec_${rec.id}`,
+        type:   "approval",
+        title:  "Recommendation approved ✓",
+        body:   `Dr. approved ${rec.strains?.name ?? "your recommendation"}. Ready to use!`,
+        action: { label: "View recommendations", path: "/recommendations" },
       });
+    });
 
-      // Usage without feedback
-      const { data: usage } = await supabase
+    // Usage without feedback
+    const usage = await readOr<UsageRow[]>(
+      "bell: usage records", [],
+      supabase
         .from("usage_records")
         .select("id, usage_date, strains(name), feedback(id)")
         .eq("patient_id", patientId)
         .order("usage_date", { ascending: false })
-        .limit(5);
+        .limit(5),
+    );
+    sawFailure = sawFailure || usage.failed;
 
-      (usage ?? []).forEach((u: any) => {
-        const hasFb    = Array.isArray(u.feedback) ? u.feedback.length > 0 : !!u.feedback;
-        const daysAgo  = Math.floor((Date.now() - new Date(u.usage_date).getTime()) / 86400000);
-        if (!hasFb && daysAgo >= 1 && daysAgo <= 14) {
-          generated.push({
-            id:     `fb_${u.id}`,
-            type:   "feedback_due",
-            title:  "Feedback pending",
-            body:   `Rate your session with ${u.strains?.name ?? "the strain"} to improve recommendations.`,
-            action: { label: "Submit feedback", path: "/feedback" },
-            read:   false,
-          });
-        }
-      });
-
-      // 30-day reminder
-      const last = (usage ?? [])[0];
-      if (last) {
-        const daysAgo = Math.floor((Date.now() - new Date(last.usage_date).getTime()) / 86400000);
-        if (daysAgo >= 30) {
-          generated.push({
-            id:   "reminder_30",
-            type: "reminder",
-            title: "30 days since last session",
-            body:  "Log a new usage session to keep your treatment history current.",
-            action: { label: "Log usage", path: "/recommendations" },
-            read:  false,
-          });
-        }
+    usage.data.forEach((u) => {
+      const hasFb   = Array.isArray(u.feedback) ? u.feedback.length > 0 : !!u.feedback;
+      const daysAgo = Math.floor((Date.now() - new Date(u.usage_date).getTime()) / 86400000);
+      if (!hasFb && daysAgo >= 1 && daysAgo <= 14) {
+        generated.push({
+          id:     `fb_${u.id}`,
+          type:   "feedback_due",
+          title:  "Feedback pending",
+          body:   `Rate your session with ${u.strains?.name ?? "the strain"} to improve recommendations.`,
+          action: { label: "Submit feedback", path: "/feedback" },
+        });
       }
+    });
 
-      setNotifs(generated.slice(0, 5));
-    };
-    load();
+    // 30-day reminder
+    const last = usage.data[0];
+    if (last) {
+      const daysAgo = Math.floor((Date.now() - new Date(last.usage_date).getTime()) / 86400000);
+      if (daysAgo >= 30) {
+        generated.push({
+          id:    "reminder_30",
+          type:  "reminder",
+          title: "30 days since last session",
+          body:  "Log a new usage session to keep your treatment history current.",
+          action: { label: "Log usage", path: "/recommendations" },
+        });
+      }
+    }
+
+    setFailed(sawFailure);
+    setNotifs(generated.slice(0, 5));
   }, [patientId]);
 
-  const unread     = notifs.filter((n) => !n.read).length;
-  const markRead   = (id: string) => setNotifs((p) => p.map((n) => n.id === id ? { ...n, read: true } : n));
-  const markAll    = () => setNotifs((p) => p.map((n) => ({ ...n, read: true })));
+  // Mount load drives the unread badge; reopening refetches, so an approval
+  // made in another session appears without a page reload. Deliberately not a
+  // realtime subscription — one more moving part to fail during a demo.
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  const isRead   = (id: string) => readIds.includes(id);
+  const unread   = notifs.filter((n) => !isRead(n.id)).length;
+
+  const persist  = (ids: string[]) => { setReadIds(ids); saveReadIds(patientId, ids); };
+  const markRead = (id: string) => { if (!isRead(id)) persist([...readIds, id]); };
+  const markAll  = () => persist(Array.from(new Set([...readIds, ...notifs.map((n) => n.id)])));
   const handleAct  = (n: Notif) => { markRead(n.id); if (n.action) navigate(n.action.path); setOpen(false); };
 
   return (
@@ -170,7 +236,15 @@ const NotificationBell = ({ patientId }: { patientId: string | null }) => {
             </div>
           </div>
 
-          {notifs.length === 0 ? (
+          {failed ? (
+            <div className="flex flex-col items-center py-10 text-slate-500 gap-2">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+              <p className="text-[12px]">Couldn't load notifications</p>
+              <button onClick={load} className="text-[11px] text-emerald-600 font-semibold hover:underline">
+                Try again
+              </button>
+            </div>
+          ) : notifs.length === 0 ? (
             <div className="flex flex-col items-center py-10 text-slate-400 gap-2">
               <Bell className="h-6 w-6 opacity-25" />
               <p className="text-[12px]">No notifications yet</p>
@@ -182,7 +256,7 @@ const NotificationBell = ({ patientId }: { patientId: string | null }) => {
                 const Icon = cfg.icon;
                 return (
                   <div key={n.id}
-                    className={`flex gap-3 px-4 py-3 ${n.read ? "opacity-60" : "bg-slate-50/50"}`}>
+                    className={`flex gap-3 px-4 py-3 ${isRead(n.id) ? "opacity-60" : "bg-slate-50/50"}`}>
                     <div className={`w-8 h-8 rounded-full ${cfg.bg} flex items-center justify-center shrink-0 mt-0.5`}>
                       <Icon className={`h-4 w-4 ${cfg.color}`} />
                     </div>
@@ -196,7 +270,7 @@ const NotificationBell = ({ patientId }: { patientId: string | null }) => {
                         </button>
                       )}
                     </div>
-                    {!n.read && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />}
+                    {!isRead(n.id) && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />}
                   </div>
                 );
               })}
@@ -221,11 +295,13 @@ const Navbar = () => {
   const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
-    if (!isDoctor && currentUser?.id) {
-      supabase.from("patients").select("id")
-        .eq("user_id", currentUser.id).maybeSingle()
-        .then(({ data }) => setPatientId(data?.id ?? null));
-    }
+    if (isDoctor || !currentUser?.id) return;
+    // If this read fails the bell has no patient to query for, so the failure
+    // must be visible in the console rather than looking like "no patient".
+    read<{ id: string }>(
+      "navbar: resolve patient for current user",
+      supabase.from("patients").select("id").eq("user_id", currentUser.id).maybeSingle(),
+    ).then(({ data }) => setPatientId(data?.id ?? null));
   }, [currentUser, isDoctor]);
 
   const handleLogout = async () => {
