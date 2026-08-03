@@ -181,11 +181,15 @@ export function scoreStrains(
     const scEntry = conditionIndex.get(strain.id);
     let matchedViaTable = false;
 
-    if (scEntry?.conditions.length) {
+    // Guard: an empty condition string must never match (`"x".includes("")` is always true)
+    const condTrimmed = conditions.trim();
+    const firstWord = condTrimmed.split(/\s+/)[0] ?? "";
+
+    if (scEntry?.conditions.length && condTrimmed.length > 0) {
       for (const dbCond of scEntry.conditions) {
         const d = dbCond.toLowerCase();
         const hit =
-          conditions.includes(d) || d.includes(conditions.split(" ")[0]) ||
+          conditions.includes(d) || (firstWord.length >= 4 && d.includes(firstWord)) ||
           (conditions.includes("pain")        && d.includes("pain"))       ||
           (conditions.includes("anxiety")     && d === "anxiety")          ||
           (conditions.includes("insomnia")    && d === "insomnia")         ||
@@ -288,4 +292,49 @@ export function scoreStrains(
       sideEffectRate,
     };
   });
+}
+
+// ─── Persist generated recommendations (closes the feedback loop) ─────────────
+// Replaces the patient's previous *pending* engine recommendations with the new
+// top results. Doctor-reviewed rows (approved / rejected) are never touched.
+export async function persistRecommendations(
+  patientId: string,
+  top: ScoredStrain[],
+): Promise<void> {
+  if (!patientId || top.length === 0) return;
+  try {
+    // 1. Skip write if the same pending set already exists (avoids churn on refresh)
+    const { data: existing, error: exErr } = await supabase
+      .from("recommendations")
+      .select("strain_id")
+      .eq("patient_id", patientId)
+      .eq("status", "pending");
+
+    if (!exErr && existing) {
+      const prev = new Set(existing.map((r) => r.strain_id as string));
+      const next = new Set(top.map((s) => s.id));
+      const same = prev.size === next.size && [...next].every((id) => prev.has(id));
+      if (same) return;
+    }
+
+    // 2. Clear stale pending rows, then insert the fresh set
+    const { error: delErr } = await supabase
+      .from("recommendations")
+      .delete()
+      .eq("patient_id", patientId)
+      .eq("status", "pending");
+    if (delErr) throw delErr;
+
+    const rows = top.map((s) => ({
+      patient_id:  patientId,
+      strain_id:   s.id,
+      match_score: s.matchScore,
+      explanation: s.reasons.join(" · ") || "Rule-based match",
+      status:      "pending",
+    }));
+    const { error: insErr } = await supabase.from("recommendations").insert(rows);
+    if (insErr) throw insErr;
+  } catch (err) {
+    console.error("[persistRecommendations] failed:", err);
+  }
 }

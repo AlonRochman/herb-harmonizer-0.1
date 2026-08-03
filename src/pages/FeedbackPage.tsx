@@ -117,23 +117,24 @@ const SubmitTab = ({ patientId }: { patientId: string | null }) => {
     const load = async () => {
       setIsLoading(true);
       try {
-        let query = supabase
+        // Never show other patients' sessions — if we can't resolve the
+        // patient, show an empty list (the UI guides them to complete a profile).
+        if (!patientId) { setUsageRecords([]); return; }
+
+        const { data } = await supabase
           .from("usage_records")
           .select("id, usage_date, dosage, consumption_method, strains(name, thc_level, cbd_level)")
+          .eq("patient_id", patientId)
           .order("usage_date", { ascending: false });
 
-        if (patientId) {
-          query = query.eq("patient_id", patientId);
-        } else {
-          query = query.limit(10);
-        }
+        const ids = (data ?? []).map((r: any) => r.id);
+        if (ids.length === 0) { setUsageRecords([]); return; }
 
-        const { data } = await query;
-
-        // Filter out usage_records that already have feedback
+        // Filter out sessions that already have feedback — scoped, not the whole table
         const { data: existingFb } = await supabase
           .from("feedback")
-          .select("usage_id");
+          .select("usage_id")
+          .in("usage_id", ids);
         const ratedIds = new Set((existingFb ?? []).map((f: any) => f.usage_id));
         setUsageRecords((data ?? []).filter((r: any) => !ratedIds.has(r.id)));
       } finally {
@@ -279,19 +280,17 @@ const HistoryTab = ({ patientId }: { patientId: string | null }) => {
     const load = async () => {
       setLoading(true);
       try {
-        let query = supabase
+        if (!patientId) { setHistory([]); return; }
+
+        const { data } = await supabase
           .from("usage_records")
           .select(`
             id, usage_date, dosage, consumption_method,
             strains ( name, thc_level, cbd_level, category ),
             feedback ( effectiveness_score, side_effects, comments )
           `)
+          .eq("patient_id", patientId)
           .order("usage_date", { ascending: false });
-
-        if (patientId) query = query.eq("patient_id", patientId);
-        else query = query.limit(20);
-
-        const { data } = await query;
 
         // Keep only rows that have at least one feedback
         const rows = (data ?? [])

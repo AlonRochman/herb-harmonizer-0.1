@@ -34,15 +34,51 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null);
 
+// ─── Session persistence (fixes login/profile loss on page refresh) ─────────
+function readSession<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSession(key: string, value: unknown | null) {
+  try {
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [patientProfile, setPatientProfileState] = useState<PatientProfile | null>(
+    () => readSession<PatientProfile>("mc_patient_profile"),
+  );
   const [clinicalConstraints, setClinicalConstraints] = useState<ClinicalConstraints | null>(null);
   const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  
-  // ה-State החדש של המשתמש המחובר
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  // המשתמש המחובר — משוחזר מ-sessionStorage כדי לשרוד רענון דף
+  const [currentUser, setCurrentUserState] = useState<CurrentUser | null>(
+    () => readSession<CurrentUser>("mc_current_user"),
+  );
+
+  const setCurrentUser = (user: CurrentUser | null) => {
+    setCurrentUserState(user);
+    writeSession("mc_current_user", user);
+    if (user === null) {
+      // logout — clear everything user-scoped
+      setPatientProfileState(null);
+      writeSession("mc_patient_profile", null);
+    }
+  };
+
+  const setPatientProfile = (p: PatientProfile) => {
+    setPatientProfileState(p);
+    writeSession("mc_patient_profile", p);
+  };
 
   const addUsageRecord = (u: UsageRecord) => setUsageRecords((prev) => [...prev, u]);
   const addFeedback = (f: Feedback) => setFeedbacks((prev) => [...prev, f]);

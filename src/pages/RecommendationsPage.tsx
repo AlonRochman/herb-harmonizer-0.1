@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
-import { fetchFeedbackIndex, fetchConditionIndex, scoreStrains } from "@/lib/recommendationEngine";
+import { fetchFeedbackIndex, fetchConditionIndex, scoreStrains, persistRecommendations } from "@/lib/recommendationEngine";
 import type { ScoredStrain } from "@/lib/recommendationEngine";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -634,6 +634,7 @@ const RecommendationsPage = () => {
   const [conditionLabel, setConditionLabel]     = useState("");
   const [feedbackCoverage, setFeedbackCoverage] = useState(0);
   const [resolvedPatientId, setResolvedPatientId] = useState("");
+  const [constraintWarning, setConstraintWarning] = useState("");
   const [debugInfo, setDebugInfo]               = useState<Record<string, unknown>>({});
 
   useEffect(() => {
@@ -661,13 +662,18 @@ const RecommendationsPage = () => {
           }
         }
 
+        // Track whether this is the logged-in patient's own profile.
+        // Only then do we log usage / persist recommendations against it.
+        let isOwnProfile = !!profile;
+
         if (!profile) {
           const { data } = await supabase.from("patient_profiles").select("*").limit(1).maybeSingle();
           profile = data;
           pid = profile?.patient_id as string ?? null;
+          isOwnProfile = false; // demo fallback — someone else's profile
         }
 
-        if (pid) setResolvedPatientId(pid);
+        if (pid && isOwnProfile) setResolvedPatientId(pid);
 
         const conditions = (profile?.medical_conditions as string ?? "").toLowerCase();
         const age        = (profile?.age as number) ?? 40;
@@ -695,11 +701,26 @@ const RecommendationsPage = () => {
           return true;
         });
 
-        const scored = scoreStrains(pool.length > 0 ? pool : allStrains, conditions, age, thcMax, cbdMin, feedbackIndex, conditionIndex);
+        // Clinical safety: never silently bypass THC/CBD constraints.
+        // If nothing qualifies, show an explicit message instead of unsafe strains.
+        if (pool.length === 0) {
+          setConstraintWarning(
+            `No strain satisfies your clinical constraints (THC ≤ ${thcMax ?? "—"}% / CBD ≥ ${cbdMin ?? "—"}%). ` +
+            `Please review your constraints with your physician.`,
+          );
+          setRecommendations([]);
+          return;
+        }
+        setConstraintWarning("");
+
+        const scored = scoreStrains(pool, conditions, age, thcMax, cbdMin, feedbackIndex, conditionIndex);
         const top3   = scored.filter((s) => s.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
 
         setFeedbackCoverage(top3.filter((s) => s.feedbackCount > 0).length);
         setRecommendations(top3);
+
+        // Close the loop: save the generated set so doctors can review/approve it
+        if (pid && isOwnProfile) await persistRecommendations(pid, top3);
       } catch (err) {
         console.error("Recommendation error:", err);
       } finally {
@@ -738,6 +759,11 @@ const RecommendationsPage = () => {
 
       {loading ? (
         <div className="space-y-4">{[0,150,300].map((d) => <CardSkeleton key={d} delay={d} />)}</div>
+      ) : constraintWarning ? (
+        <Alert className="bg-amber-50 border-amber-200 rounded-2xl animate-in fade-in duration-500">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800 text-sm">{constraintWarning}</AlertDescription>
+        </Alert>
       ) : recommendations.length === 0 ? (
         <Alert className="bg-blue-50 border-blue-200 rounded-2xl animate-in fade-in duration-500">
           <Info className="h-4 w-4 text-blue-600" />

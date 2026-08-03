@@ -141,6 +141,37 @@ const PatientInputPage = () => {
     load();
   }, []);
 
+  // ── prefill for a logged-in patient (edit own profile, not create new) ─────
+  useEffect(() => {
+    if (isDoctor || !currentUser?.id) return;
+    const prefill = async () => {
+      const { data: patientRow } = await supabase
+        .from("patients").select("id")
+        .eq("user_id", currentUser.id).maybeSingle();
+      if (!patientRow?.id) return;
+
+      const [{ data: profile }, { data: constraints }] = await Promise.all([
+        supabase.from("patient_profiles").select("*")
+          .eq("patient_id", patientRow.id).maybeSingle(),
+        supabase.from("clinical_constraints").select("thc_max, cbd_min, contraindications")
+          .eq("patient_id", patientRow.id).maybeSingle(),
+      ]);
+      if (profile) {
+        setAge(profile.age != null ? String(profile.age) : "");
+        setGender(profile.gender || "");
+        setCondition(profile.medical_conditions || "");
+        setSensitivities(profile.sensitivities || "");
+        setPreferences(profile.preferences || "");
+      }
+      if (constraints) {
+        setThcMax(constraints.thc_max != null ? String(constraints.thc_max) : "");
+        setCbdMin(constraints.cbd_min != null ? String(constraints.cbd_min) : "");
+        setContraindications(constraints.contraindications || "");
+      }
+    };
+    prefill();
+  }, [isDoctor, currentUser]);
+
   // ── auto-fill when picking a patient ───────────────────────────────────────
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId);
@@ -182,6 +213,26 @@ const PatientInputPage = () => {
   };
 
   // ── submit ─────────────────────────────────────────────────────────────────
+  // Supabase never throws — it returns { error }. This helper makes silent
+  // write failures impossible (previously "Profile saved" showed even on failure).
+  const must = <T,>(res: { data: T; error: { message: string } | null }): T => {
+    if (res.error) throw new Error(res.error.message);
+    return res.data;
+  };
+
+  // Resolve (or create) the patients.id that belongs to the logged-in user,
+  // so a patient updates their own record instead of creating orphan rows.
+  const resolveOwnPatientId = async (): Promise<string> => {
+    if (!currentUser?.id) throw new Error("Not logged in");
+    const existing = must(await supabase
+      .from("patients").select("id")
+      .eq("user_id", currentUser.id).maybeSingle());
+    if (existing?.id) return existing.id;
+    const created = must(await supabase
+      .from("patients").insert({ user_id: currentUser.id }).select("id").single());
+    return created!.id;
+  };
+
   const handleSubmit = async () => {
     const e: Record<string, string> = {};
     if (!thcMax) e.thcMax = "Required";
@@ -194,25 +245,40 @@ const PatientInputPage = () => {
       let finalId = selectedPatientId;
 
       if (finalId === "manual") {
-        const { data: u }  = await supabase.from("users").insert({ full_name: `Patient (${age}yo)` }).select("id").single();
-        const { data: pt } = await supabase.from("patients").insert({ user_id: u!.id }).select("id").single();
-        finalId = pt!.id;
-        await supabase.from("patient_profiles").insert({
-          patient_id: finalId, age: +age, gender,
-          medical_conditions: condition, sensitivities, preferences,
-        });
-        await supabase.from("clinical_constraints").insert({
-          patient_id: finalId, thc_max: +thcMax, cbd_min: +cbdMin, contraindications,
-        });
-      } else {
-        await supabase.from("patient_profiles").update({
-          age: +age, gender, medical_conditions: condition, sensitivities, preferences,
-        }).eq("patient_id", finalId);
-        await supabase.from("clinical_constraints").delete().eq("patient_id", finalId);
-        await supabase.from("clinical_constraints").insert({
-          patient_id: finalId, thc_max: +thcMax, cbd_min: +cbdMin, contraindications,
-        });
+        if (!isDoctor && currentUser?.id) {
+          // Logged-in patient → always write to their own record
+          finalId = await resolveOwnPatientId();
+        } else {
+          // Doctor creating a brand-new patient manually
+          const u  = must(await supabase.from("users")
+            .insert({ full_name: `Patient (${age}yo)` }).select("id").single());
+          const pt = must(await supabase.from("patients")
+            .insert({ user_id: u!.id }).select("id").single());
+          finalId = pt!.id;
+        }
       }
+
+      // Upsert profile: update if a row exists for this patient, otherwise insert
+      const existingProfile = must(await supabase
+        .from("patient_profiles").select("id")
+        .eq("patient_id", finalId).maybeSingle());
+
+      const profilePayload = {
+        age: +age, gender, medical_conditions: condition, sensitivities, preferences,
+      };
+      if (existingProfile?.id) {
+        must(await supabase.from("patient_profiles")
+          .update(profilePayload).eq("patient_id", finalId));
+      } else {
+        must(await supabase.from("patient_profiles")
+          .insert({ patient_id: finalId, ...profilePayload }));
+      }
+
+      // Replace clinical constraints
+      must(await supabase.from("clinical_constraints").delete().eq("patient_id", finalId));
+      must(await supabase.from("clinical_constraints").insert({
+        patient_id: finalId, thc_max: +thcMax, cbd_min: +cbdMin, contraindications,
+      }));
 
       setPatientProfile({ patientId: finalId, age: +age, gender, medicalConditions: condition, sensitivities, preferences });
       setClinicalConstraints({ patientId: finalId, thcMax: +thcMax, cbdMin: +cbdMin, contraindications });
