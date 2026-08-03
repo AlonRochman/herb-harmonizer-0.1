@@ -16,8 +16,19 @@ export default {
       fontFamily: {
         display: ['Plus Jakarta Sans', 'sans-serif'],
         body: ['Inter', 'sans-serif'],
+        // Utility face for clinical data: cannabinoid values, evidence grades,
+        // ranks. Lab reports are monospaced; aligned digits are scannable.
+        data: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
       },
       colors: {
+        // Clinical instrument tokens. resin/clinic are *semantic*:
+        // resin always means THC, clinic always means CBD. Never decorative.
+        ink:    "#14201C",
+        paper:  "#F7F8F6",
+        rule:   "#D8DCD6",
+        resin:  "#B4762A",
+        clinic: "#2F7A72",
+        flag:   "#A63D2F",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
